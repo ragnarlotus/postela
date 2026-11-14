@@ -1,9 +1,9 @@
 # Composition and delivery
 
-**Grupo:** `RFCD`
+**Group:** `RFCD`
 
-**Numeración:** `RFCD001`, `RFCD002`, `RFCD003`…
+**Numbering:** `RFCD001`, `RFCD002`, `RFCD003`…
 
-## Requisitos funcionales
+## Functional requirements
 
-_Pendiente de definir._
+_To be defined._
