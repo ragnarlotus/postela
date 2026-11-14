@@ -12,7 +12,7 @@ This document defines how the Postela backend persists its own account data, pro
 
 It describes the **technical implementation** of behaviors established in `RFDS`. General backend configuration, session management, security, and service startup are defined in `RTCA`.
 
-Postela must **never persist email messages, mail-server passwords, session tokens, or session state**. Email messages remain on the IMAP server. The database is reserved for Postela's own account records, sender identities, contacts, trusted senders, and user preferences.
+Postela must **never persist email messages, mail-server passwords, session tokens, or session state**. Email messages remain on the IMAP server. The database is reserved for Postela's own account records, sender identities, contacts, trusted senders, account-wide preference overrides, and client-specific preferences.
 
 ## Technical requirements
 
@@ -24,7 +24,7 @@ The backend must use **SQLite** as the initial persistent storage engine for Pos
 
 The initial architecture must not require a separately managed database server, such as PostgreSQL or MariaDB.
 
-**Related functional requirements:** RFDS001–RFDS024.
+**Related functional requirements:** RFDS001–RFDS028.
 
 #### RTDS002 — Write-Ahead Logging mode
 
@@ -60,7 +60,7 @@ All account-owned records must be associated with their owning account, and back
 
 References to another account's records must not be accepted simply because their numeric identifiers exist.
 
-Deleting an account must remove its owned sender identities, contacts, contact email addresses, contact telephone numbers, trusted senders, and preferences using appropriate foreign keys and `ON DELETE CASCADE` rules.
+Deleting an account must remove its owned sender identities, contacts, contact email addresses, contact telephone numbers, trusted senders, account-wide preferences, and client-specific preferences using appropriate foreign keys and `ON DELETE CASCADE` rules.
 
 Deleting data in Postela must not issue deletion commands against the remote mail server.
 
@@ -165,7 +165,7 @@ A trusted-sender record must apply to an individual address, **not to a domain w
 
 **Related functional requirements:** RFDS015–RFDS018.
 
-#### RTDS016 — Account preferences table
+#### RTDS016 — Account-wide preferences table
 
 The `account_preferences` table must contain:
 
@@ -175,13 +175,15 @@ The `account_preferences` table must contain:
 
 The primary key must be the composite (`account_id`, `key`), preventing multiple overrides for the same preference in one account.
 
-The backend must validate each preference's supported key, type, and value before saving it.
+The backend must validate each account-wide preference's supported key, type, and value before saving it.
+
+This table stores **only account-wide overrides**, not language, theme, or other client-specific settings, which have a separate schema defined in RTDS032.
 
 **Related functional requirements:** RFDS019–RFDS021.
 
 #### RTDS017 — Preference overrides and resolution
 
-Only **user-customized preference overrides** must be stored in SQLite.
+Only **user-customized account-wide preference overrides** must be stored in `account_preferences`. Client-specific language and theme values have separate initialization and persistence rules under RTDS033.
 
 The effective value must be resolved in this precedence order:
 
@@ -197,13 +199,15 @@ The TOML configuration merge and environment overrides remain governed by [RTCA0
 
 #### RTDS018 — Last-write-wins updates and notifications
 
-Account data modifications must follow the **last write committed by the backend wins** policy.
+Account data modifications, including both kinds of preference, must follow the **last write committed by the backend wins** policy.
 
 The backend must not introduce edit locks, conflict-version checks, or conflict-resolution dialogs for this data.
 
-After a successful transaction commits, the backend must notify other authorized active sessions of that account through the existing WebSocket communication mechanism. Notifications must not be emitted as successful updates before the underlying transaction has committed.
+After a successful transaction commits, the backend must notify authorized sessions through the existing WebSocket mechanism. **Account-wide changes** must reach the account's other active sessions; **client-specific preference changes** must reach only the same account-and-client-application sessions, as specified in RTDS035.
 
-**Related functional requirements:** RFDS023, RFDS024.
+Notifications must not be emitted as successful updates before the underlying transaction has committed.
+
+**Related functional requirements:** RFDS023, RFDS024, RFDS028.
 
 ### Schema versioning and migrations
 
@@ -313,6 +317,51 @@ The SQLite database, its `-wal` and `-shm` auxiliary files, and their containing
 The backup directory must be independently configurable and protected against unauthorized access.
 
 Data and backup paths must not expose persistent files as publicly served application resources.
+
+### Client-specific preference storage
+
+#### RTDS032 — Client preference schema and isolation
+
+The backend must store application-specific preferences separately from account-wide overrides, using a `client_preferences` table with:
+
+- `account_id`: the authenticated owning account, referencing `accounts.id`.
+- `client_id`: stable application identifier, independent of device and application version.
+- `key`: client-specific preference name, initially including `language` and `theme`.
+- `value`: stored preference value.
+
+The primary key must be (`account_id`, `client_id`, `key`), so each account and application has at most one value per preference. Foreign-key cascading must remove these records when the owning account is deleted.
+
+There must be **no fallback from this table to `config.toml` or `config.default.toml`**. The backend must not define or maintain catalogs of client-supported languages or themes.
+
+**Related functional requirements:** RFDS025, RFGS001–RFGS003.
+
+#### RTDS033 — Insert-only initialization at login
+
+Following successful authentication, the backend must associate the submitted `client_id` with the session and, when supplied, initialize `language` and `theme` values for the account and application.
+
+Each initial preference must be inserted **only if no record exists for (`account_id`, `client_id`, `key`)**. Concurrent or repeated logins must not overwrite an existing stored value; the operation must be safe against conflicting inserts.
+
+If a preference is omitted during login and has no stored value, the backend must leave it absent. An initial value is persistent client configuration, **not an account-wide preference override**.
+
+**Related functional requirements:** RFDS026, RFGS004.
+
+#### RTDS034 — Client preference retrieval and updates
+
+Once the authenticated WebSocket is established, the backend must retrieve the stored language and theme for that session's `account_id` and `client_id`. **Only existing preference values** must be included in the client state; missing values must not be synthesized.
+
+A request to update language or theme must identify the client application and be scoped to the authenticated account. The backend must validate the client identifier and the value's permitted representation and length without requiring knowledge of the client application's language or theme catalog.
+
+An explicit preference change must update or create the corresponding record, following the agreed last-write-wins policy. Changes must never affect another account or application identifier.
+
+**Related functional requirements:** RFDS027, RFGS005, RFGS006, RFGS008.
+
+#### RTDS035 — Client-specific notification routing
+
+After a client preference update commits successfully, the backend must notify only active WebSocket sessions associated with the **same account and `client_id`**.
+
+Other applications used by that account must not receive that client-specific update. This restriction does not affect the existing account-wide notifications delivered to all authorized sessions of the account.
+
+**Related functional requirements:** RFDS023, RFDS028, RFGS007.
 
 ## Open implementation details
 
