@@ -1,9 +1,9 @@
 # Filters
 
-**Grupo:** `RFF`
+**Group:** `RFF`
 
-**Numeración:** `RFF001`, `RFF002`, `RFF003`…
+**Numbering:** `RFF001`, `RFF002`, `RFF003`…
 
-## Requisitos funcionales
+## Functional requirements
 
-_Pendiente de definir._
+_To be defined._
