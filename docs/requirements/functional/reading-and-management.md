@@ -1,9 +1,9 @@
 # Reading and management
 
-**Grupo:** `RFRM`
+**Group:** `RFRM`
 
-**Numeración:** `RFRM001`, `RFRM002`, `RFRM003`…
+**Numbering:** `RFRM001`, `RFRM002`, `RFRM003`…
 
-## Requisitos funcionales
+## Functional requirements
 
-_Pendiente de definir._
+_To be defined._
