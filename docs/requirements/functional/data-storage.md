@@ -168,6 +168,22 @@ New account-wide preferences added in later versions must be available to existi
 
 The source and layering of application and administrator configuration are defined in [Core architecture](../technical/core-architecture.md).
 
+### Consistency across sessions
+
+#### RFDS023 — Real-time propagation of account-data changes
+
+When contacts, sender identities, trusted senders, or **account-wide preferences** are modified, Postela must notify the other active sessions authorized for the same account so their views can reflect the updated data.
+
+Client-specific preference changes must follow the narrower account-and-client notification scope defined in RFDS028. No account-data change may be sent to sessions of unrelated accounts.
+
+#### RFDS024 — Last write wins
+
+If multiple sessions modify the same persistent account data, the **last modification processed by the backend must prevail**.
+
+Postela must not require edit locks, conflict-resolution dialogs, or concurrent-edit version checks for this data.
+
+After a successful modification, the resulting state must be made available to the account's other sessions.
+
 ### Client-specific preferences
 
 #### RFDS025 — Client-specific preference isolation
@@ -197,22 +213,6 @@ A client must be able to change its stored language or theme by submitting its a
 When a client-specific preference changes, Postela must notify the other active sessions belonging to the **same mail account and client application**.
 
 Sessions of the account using other application identifiers must not receive that client-specific update. Account-wide preference changes remain shared among all authorized sessions of the account, as described in RFDS023.
-
-### Consistency across sessions
-
-#### RFDS023 — Real-time propagation of account-data changes
-
-When contacts, sender identities, trusted senders, or **account-wide preferences** are modified, Postela must notify the other active sessions authorized for the same account so their views can reflect the updated data.
-
-Client-specific preference changes must follow the narrower account-and-client notification scope defined in RFDS028. No account-data change may be sent to sessions of unrelated accounts.
-
-#### RFDS024 — Last write wins
-
-If multiple sessions modify the same persistent account data, the **last modification processed by the backend must prevail**.
-
-Postela must not require edit locks, conflict-resolution dialogs, or concurrent-edit version checks for this data.
-
-After a successful modification, the resulting state must be made available to the account's other sessions.
 
 ## Scope boundaries
 
