@@ -1,9 +1,9 @@
 # Database
 
-**Grupo:** `RFD`
+**Group:** `RFD`
 
-**Numeración:** `RFD001`, `RFD002`, `RFD003`…
+**Numbering:** `RFD001`, `RFD002`, `RFD003`…
 
-## Requisitos funcionales
+## Functional requirements
 
-_Pendiente de definir._
+_To be defined._
