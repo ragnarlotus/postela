@@ -1,103 +1,103 @@
 # Sync and notifications
 
-**Grupo:** `RFSN`
+**Group:** `RFSN`
 
-**Numeración:** `RFSN001`, `RFSN002`, `RFSN003`…
+**Numbering:** `RFSN001`, `RFSN002`, `RFSN003`…
 
-**Detalles de implementación:** [Requisitos técnicos de sincronización y notificaciones](../technical/sync-and-notifications.md).
+**Implementation details:** [Sync and notifications — technical requirements](../technical/sync-and-notifications.md).
 
-## Alcance
+## Scope
 
-Este grupo define **qué debe hacer Postela** para detectar cambios en el correo, mantener actualizada la interfaz y recuperarse de las interrupciones de conexión.
+This group specifies **what Postela must do** to detect mail changes, keep a client application's state up to date, and recover from interrupted connections. It does not prescribe a frontend framework or a particular implementation protocol.
 
-**Postela no almacena ningún mensaje de correo.** Los mensajes permanecen en el servidor de correo y se consultan cuando es necesario.
+**Postela does not store email messages.** Messages remain on the mail server and are retrieved when needed.
 
-Las operaciones de lectura, modificación y envío de mensajes, así como la autenticación inicial y la gestión general de sesiones, se definirán en sus grupos correspondientes. Los protocolos, las conexiones y las bibliotecas utilizados para cumplir estos comportamientos se especifican en los requisitos técnicos.
+Reading, modifying, and sending messages, as well as initial authentication and general session management, are covered by their respective requirements groups.
 
-## Requisitos funcionales
+## Functional requirements
 
-### Supervisión de cambios
+### Change monitoring
 
-#### RFSN001 — Supervisión continua del correo
+#### RFSN001 — Continuous mail monitoring
 
-Mientras la cuenta esté activa, Postela debe detectar los cambios que se produzcan en el correo sin que el usuario tenga que actualizar manualmente la interfaz.
+While an account session is active, Postela must detect changes to the account's mail without requiring the user to refresh manually.
 
-#### RFSN002 — Supervisión de todas las carpetas
+#### RFSN002 — Monitoring all personal folders
 
-Postela debe supervisar los cambios de todas las carpetas personales de la cuenta, incluidas las que no estén abiertas en la interfaz.
+Postela must monitor changes in all personal folders of an account, including folders that the user is not currently viewing.
 
-#### RFSN003 — Detección de entradas y salidas de mensajes
+#### RFSN003 — Detecting message arrivals and removals
 
-Postela debe detectar cuándo se incorpora o desaparece un mensaje de una carpeta, tanto por recepción o eliminación como por movimientos entre carpetas.
+Postela must detect when messages appear in or disappear from a folder, including changes caused by receiving, deleting, or moving messages between folders.
 
-#### RFSN004 — Detección de cambios de indicadores
+#### RFSN004 — Detecting message flag changes
 
-Postela debe detectar los cambios en el estado de los mensajes, como marcar un correo como leído o no leído, independientemente de la carpeta en la que se encuentren.
+Postela must detect changes to message flags, such as read and unread status, regardless of which folder contains the message.
 
-#### RFSN005 — Detección de cambios en carpetas
+#### RFSN005 — Detecting folder changes
 
-Postela debe detectar la creación, eliminación y renombrado de carpetas, así como sus cambios de suscripción.
+Postela must detect folder creation, deletion, renaming, and subscription changes.
 
-### Actualización de la interfaz
+### Client state updates
 
-#### RFSN006 — Actualización de contadores
+#### RFSN006 — Updating folder counters
 
-Cuando cambie el contenido o el estado de una carpeta, Postela debe actualizar sus contadores afectados, incluidos el número total de mensajes y el de mensajes no leídos.
+When a folder's contents or state changes, Postela must update the affected counters, including the total number of messages and the number of unread messages.
 
-#### RFSN007 — Actualización de la página visible
+#### RFSN007 — Refreshing the visible message page
 
-Si cambia una carpeta cuyo listado de mensajes está abierto, Postela debe volver a cargar **solo la página que está viendo el usuario**, conservando la paginación y ordenación seleccionadas, y sustituir el listado anterior por el actualizado.
+When the contents or message state of the folder currently being viewed change, Postela must reload **only the page of messages currently visible to the user**, preserving the selected pagination and sort order, and replace the displayed list with the refreshed result.
 
-Si la carpeta afectada no está abierta, se actualizarán sus contadores sin recargar su listado de mensajes.
+For a folder that is not currently being viewed, Postela must update its counters without refreshing its message list.
 
-#### RFSN008 — Actualización del árbol de carpetas
+#### RFSN008 — Updating the folder tree
 
-Cuando se cree, elimine, renombre o cambie la suscripción de una carpeta, el árbol de carpetas mostrado debe reflejar el resultado sin requerir una actualización manual.
+The folder tree presented to the user must reflect folder creation, deletion, renaming, and subscription changes without a manual refresh.
 
-### Comunicación en tiempo real
+### Real-time communication
 
-#### RFSN009 — Comunicación bidireccional
+#### RFSN009 — Bidirectional communication
 
-Postela debe permitir que la interfaz envíe solicitudes al backend, reciba sus respuestas y obtenga notificaciones de cambios en tiempo real durante la sesión.
+Postela must allow a client application to submit requests, receive responses, and obtain real-time change notifications throughout an active session.
 
-#### RFSN010 — Aislamiento de notificaciones
+#### RFSN010 — Notification isolation
 
-Los cambios de una cuenta deben comunicarse únicamente a las sesiones autorizadas para esa cuenta. Ninguna sesión debe recibir información de otra cuenta que no le corresponda.
+Changes to an account must be delivered only to sessions authorized to access that account. A session must never receive notifications for an account it is not authorized to access.
 
-### Desconexiones y recuperación
+### Disconnections and recovery
 
-#### RFSN011 — Detección de pérdida de conexión con el correo
+#### RFSN011 — Detecting loss of mail-server connectivity
 
-Postela debe detectar cuando deja de estar disponible la conexión utilizada para supervisar el servidor de correo.
+Postela must detect when the connection used to monitor the mail server is no longer available.
 
-#### RFSN012 — Reconexión con el servidor de correo
+#### RFSN012 — Reconnecting to the mail server
 
-Ante una pérdida inesperada de esa conexión, Postela debe realizar **hasta tres intentos de reconexión** antes de considerar que el servidor de correo no está disponible.
+After an unexpected interruption of the mail-monitoring connection, Postela must make **up to three reconnection attempts** before considering the mail server unavailable.
 
-#### RFSN013 — Reanudación de la supervisión
+#### RFSN013 — Resuming mail monitoring
 
-Si Postela recupera la conexión con el servidor de correo, debe reanudar la supervisión de todas las carpetas y sus cambios.
+After successfully reconnecting to the mail server, Postela must resume monitoring changes in all personal folders.
 
-#### RFSN014 — Fallo definitivo del servidor de correo
+#### RFSN014 — Mail-server reconnection failure
 
-Si fallan los tres intentos de reconexión con el servidor de correo, Postela debe finalizar la sesión afectada e informar al usuario de que no ha sido posible conectar con el servidor de correo.
+If all three mail-server reconnection attempts fail, Postela must end the affected session and inform the user that it cannot connect to the mail server.
 
-#### RFSN015 — Reconexión de la interfaz con el backend
+#### RFSN015 — Reconnecting a client to the backend
 
-Si la interfaz pierde inesperadamente la conexión con el backend, debe realizar **hasta tres intentos de reconexión** antes de considerar que el backend no está disponible.
+If a client application's connection to the Postela backend is interrupted unexpectedly, the client must make **up to three reconnection attempts** before considering the backend unavailable.
 
-#### RFSN016 — Tratamiento de cierres controlados
+#### RFSN016 — Handling intentional connection closure
 
-Cuando Postela finalice una conexión deliberadamente e informe de su motivo, la interfaz debe actuar según ese motivo y no intentar reconectar si se ha indicado una finalización definitiva de la sesión.
+When Postela intentionally closes a connection and communicates the reason, the client must act on that reason and must not attempt to reconnect if the session has been definitively terminated.
 
-Si la conexión se interrumpe sin recibir esa indicación, debe tratarse como una desconexión inesperada.
+If the connection closes without a received indication of intentional termination, the client must treat the interruption as unexpected.
 
-#### RFSN017 — Fallo definitivo del backend
+#### RFSN017 — Backend reconnection failure
 
-Si fallan los tres intentos de reconexión con el backend, la interfaz debe finalizar la sesión, realizar el logout e informar al usuario de que no ha sido posible conectar con el backend.
+If all three attempts to reconnect to the backend fail, the client must log the user out, end its local session, and explain that it cannot connect to the backend.
 
-#### RFSN018 — Recuperación del estado de la interfaz
+#### RFSN018 — Restoring client state after reconnection
 
-Después de recuperar correctamente una conexión con el servidor de correo o con el backend, Postela debe reconstruir el estado de la interfaz **como después de iniciar sesión**, sin volver a pedir credenciales si la sesión sigue siendo válida.
+After connectivity to the mail server or backend is successfully restored, Postela must rebuild the client application's state **as it would after sign-in**, without requesting credentials again if the session remains valid.
 
-Esta recuperación incluirá el árbol de carpetas, sus contadores y la página de mensajes que se esté mostrando, sin cargar todos los mensajes de la cuenta.
+Recovery must include the folder tree, folder counters, and the currently displayed message page. It must not retrieve every message in the account.
