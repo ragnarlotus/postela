@@ -1,9 +1,9 @@
 # General settings
 
-**Grupo:** `RFGS`
+**Group:** `RFGS`
 
-**Numeración:** `RFGS001`, `RFGS002`, `RFGS003`…
+**Numbering:** `RFGS001`, `RFGS002`, `RFGS003`…
 
-## Requisitos funcionales
+## Functional requirements
 
-_Pendiente de definir._
+_To be defined._
