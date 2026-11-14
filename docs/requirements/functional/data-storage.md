@@ -6,7 +6,7 @@
 
 ## Scope
 
-This group defines **which account-related data Postela must retain and how users can manage it**. It covers account records, sender identities, contacts, trusted senders for remote content, user preferences, and changes shared across sessions.
+This group defines **which account-related data Postela must retain and how users can manage it**. It covers account records, sender identities, contacts, trusted senders for remote content, account-wide preferences, client-specific preferences, and changes shared across sessions.
 
 The requirements describe behavior, not database tables, storage engines, or implementation mechanisms. The technical data model, integrity constraints, and migrations will be defined separately.
 
@@ -38,7 +38,7 @@ An authentication failure or a period of inactivity must not delete a registered
 
 Removing a registered account from Postela must require an explicit action.
 
-Deleting an account must also delete its associated sender identities, contacts, trusted senders, and customized preferences.
+Deleting an account must also delete its associated sender identities, contacts, trusted senders, account-wide preference overrides, and client-specific preferences.
 
 This operation must **never delete the mailbox or any email messages on the mail server**.
 
@@ -136,17 +136,17 @@ When the sender of an HTML message meets the applicable trusted-sender policy fo
 
 Trusting a sender must **never permit execution of active or unsafe email content**, such as JavaScript.
 
-### Account preferences
+### Account-wide preferences
 
 #### RFDS019 — Account-wide preferences
 
-Each account must have its own persistent user preferences, shared across its authorized sessions and devices.
+Each account must have its own persistent account-wide preferences, shared across all its authorized sessions and client applications.
 
-Preferences may include language, visual theme, message-list page size, and other configurable account-level options.
+Examples include message-list page size, default message sorting, time-zone override, automatic marking as read, and preferred message content format. **Interface language and visual theme are client-specific preferences**, not account-wide settings.
 
 #### RFDS020 — Three-level preference precedence
 
-A preference's effective value must be resolved in this order, from highest to lowest priority:
+An account-wide preference's effective value must be resolved in this order, from highest to lowest priority:
 
 1. The account's explicitly customized value.
 2. The administrator's configured default.
@@ -156,25 +156,55 @@ The administrator must be able to customize the defaults without editing each ac
 
 #### RFDS021 — Store only preference overrides
 
-Postela must retain only preferences explicitly customized by the user, rather than copying all defaults into each account.
+For **account-wide preferences**, Postela must retain only values explicitly customized by the user, rather than copying all defaults into each account.
 
-When a user resets a preference, its customized value must be removed and the current effective default must apply.
+When a user resets an account-wide preference, its customized value must be removed and the current effective default must apply. The distinct client-specific initialization rules are defined in RFDS026.
 
 #### RFDS022 — Default changes and new preferences
 
-When an administrator changes a default preference, accounts without a custom override must use the updated default.
+When an administrator changes an **account-wide** default preference, accounts without a custom override must use the updated default.
 
-New preferences added in later versions must be available to existing accounts without requiring them to create corresponding customized values.
+New account-wide preferences added in later versions must be available to existing accounts without requiring them to create corresponding customized values.
 
 The source and layering of application and administrator configuration are defined in [Core architecture](../technical/core-architecture.md).
+
+### Client-specific preferences
+
+#### RFDS025 — Client-specific preference isolation
+
+Postela must retain client-specific preferences separately for each combination of **mail account and stable client application identifier (`client_id`)**.
+
+The application identifier must not depend on a device, installation, or application version. A preference of one client application must not change or override the preference of another client application, even when both are used by the same mail account.
+
+Client-specific preferences must not inherit backend or administrator TOML defaults. Their available values and meaning are defined by the client application.
+
+#### RFDS026 — Persisting initial client language and theme
+
+During successful login, a client must provide its `client_id` and may provide an initial `language` and/or `theme`.
+
+For each supplied preference, Postela must save the initial value **only if that account and client application have no stored value for it**. An existing value must never be overwritten by an initial login value.
+
+When no stored value exists and the client provides no initial value, that preference must remain unset. Unlike account-wide preferences, initial client-specific values may be persisted even before the user explicitly changes them.
+
+#### RFDS027 — Retrieving and changing client-specific values
+
+After the authenticated WebSocket connection is established, Postela must make the stored client-specific language and theme available to that client **only when a value exists**. It must not invent missing values.
+
+A client must be able to change its stored language or theme by submitting its application identifier and selected value. The new value must be persisted for the authenticated account and that application without modifying preferences of other applications.
+
+#### RFDS028 — Client-scoped preference notifications
+
+When a client-specific preference changes, Postela must notify the other active sessions belonging to the **same mail account and client application**.
+
+Sessions of the account using other application identifiers must not receive that client-specific update. Account-wide preference changes remain shared among all authorized sessions of the account, as described in RFDS023.
 
 ### Consistency across sessions
 
 #### RFDS023 — Real-time propagation of account-data changes
 
-When contacts, sender identities, trusted senders, or preferences are modified, Postela must notify the other active sessions authorized for the same account so their views can reflect the updated data.
+When contacts, sender identities, trusted senders, or **account-wide preferences** are modified, Postela must notify the other active sessions authorized for the same account so their views can reflect the updated data.
 
-Changes must not be sent to sessions of unrelated accounts.
+Client-specific preference changes must follow the narrower account-and-client notification scope defined in RFDS028. No account-data change may be sent to sessions of unrelated accounts.
 
 #### RFDS024 — Last write wins
 
@@ -189,4 +219,5 @@ After a successful modification, the resulting state must be made available to t
 - **Authentication and sessions:** session tokens, passwords, credential handling, and session expiration are defined in [Core architecture](../technical/core-architecture.md) and are not persistent account data.
 - **Mail messages:** Postela does not persist email messages; message reading and management will be specified in their own requirements group.
 - **Mail-server configuration:** domain-level server configuration and per-account exceptions are administered by the backend rather than stored as user-customized mail-account records.
-- **Technical storage design:** database selection, schema, transactions, access patterns, migration strategy, and integrity rules will be defined in the technical Data storage requirements.
+- **Client-specific behavior:** the language and theme login flow, supported values, and client-side presentation are specified in [General settings](./general-settings.md).
+- **Technical storage design:** database selection, schema, transactions, access patterns, migration strategy, and integrity rules are defined in [Technical data storage](../technical/data-storage.md).
