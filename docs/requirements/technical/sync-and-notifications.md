@@ -1,181 +1,193 @@
 # Sync and notifications
 
-**Grupo:** `RTSN`
+**Group:** `RTSN`
 
-**Numeración:** `RTSN001`, `RTSN002`, `RTSN003`…
+**Numbering:** `RTSN001`, `RTSN002`, `RTSN003`…
 
-**Requisitos funcionales relacionados:** [Sync and notifications](../functional/sync-and-notifications.md).
+**Related functional requirements:** [Sync and notifications](../functional/sync-and-notifications.md).
 
-## Alcance
+## Scope
 
-Este documento especifica los mecanismos de implementación de la supervisión de correo, la comunicación en tiempo real y las reconexiones de Postela. Los comportamientos que deben percibir los usuarios se definen exclusivamente en los requisitos funcionales `RFSN`.
+This document specifies the technical mechanisms used by the **Postela backend** for mail monitoring, real-time communication, and connection recovery. User-visible behavior is defined separately in the `RFSN` functional requirements.
 
-Postela utiliza un backend en Go y un frontend SPA en Vue 3. **Postela no almacena mensajes de correo**: permanecen en el servidor IMAP y se consultan cuando es necesario. La configuración, las preferencias y otros datos propios de la aplicación se documentarán en sus grupos correspondientes.
+The backend is implemented in Go. It exposes an interface usable by **clients built with any frontend framework or technology**. No frontend framework is part of the backend contract.
 
-## Requisitos técnicos
+**Postela does not store email messages.** Messages remain on the IMAP server and are retrieved on demand. Application-specific configuration and user data are covered by other requirements groups.
 
-### Supervisión IMAP
+## Technical requirements
 
-#### RTSN001 — Conexión persistente de supervisión
+### IMAP monitoring
 
-El backend mantendrá **una única conexión IMAP persistente por contexto de cuenta supervisada** para la recepción de eventos, sin abrir una conexión persistente por carpeta.
+#### RTSN001 — Persistent monitoring connection
 
-Esta conexión será independiente de las conexiones IMAP de corta duración utilizadas, bajo demanda, para consultar y modificar mensajes. La supervisión no requerirá seleccionar carpetas mediante `SELECT`.
+The backend must maintain **one persistent IMAP monitoring connection per monitored account context**, rather than a separate persistent connection for every folder.
 
-**Funcionales:** RFSN001–RFSN004.
+This connection must be dedicated to receiving events. Ordinary message reads and modifications must use separate, short-lived IMAP connections established on demand. Monitoring must not require selecting each folder with `SELECT`.
 
-#### RTSN002 — Transporte y autenticación IMAP
+**Related functional requirements:** RFSN001–RFSN004.
 
-La conexión de supervisión utilizará IMAP autenticado y cifrado mediante STARTTLS, con validación del certificado del servidor. No se establecerá una sesión de supervisión operativa antes de completar correctamente su autenticación.
+#### RTSN002 — IMAP transport and authentication
 
-La custodia de las credenciales y la autenticación inicial del usuario se definirán en los requisitos de seguridad y sesiones.
+The monitoring connection must use authenticated IMAP over STARTTLS, with server-certificate validation. Monitoring must not be marked operational until authentication has succeeded.
 
-**Funcionales:** RFSN001, RFSN011.
+Initial user authentication and credential handling will be specified in the authentication and session requirements.
 
-#### RTSN003 — Activación de CONDSTORE y NOTIFY PERSONAL
+**Related functional requirements:** RFSN001, RFSN011.
 
-Después de autenticarse, el backend ejecutará `ENABLE CONDSTORE` y establecerá una suscripción `NOTIFY SET` con el selector `PERSONAL`.
+#### RTSN003 — Required IMAP server capabilities and NOTIFY subscription
 
-Se solicitarán los eventos `MessageNew`, `MessageExpunge`, `FlagChange`, `MailboxName` y `SubscriptionChange`. La suscripción deberá cubrir las carpetas personales sin ejecutar `SELECT` individualmente.
+**The mail server must support and advertise the IMAP `NOTIFY`, `CONDSTORE`, and `ENABLE` capabilities to authenticated clients.** It must support the `PERSONAL` notification selector and the required events for personal folders, including flag changes in non-selected folders when `CONDSTORE` is enabled.
 
-Se utilizará `CONDSTORE` para obtener las notificaciones necesarias de cambios de indicadores en carpetas no seleccionadas. **No se utilizarán `IDLE`, seguimiento de `MODSEQ` por mensaje ni `CHANGEDSINCE` para una sincronización incremental.**
+After authentication, the backend must issue `ENABLE CONDSTORE` and establish a `NOTIFY SET` subscription with the `PERSONAL` selector, requesting:
 
-**Funcionales:** RFSN001–RFSN004, RFSN011.
+- `MessageNew`
+- `MessageExpunge`
+- `FlagChange`
+- `MailboxName`
+- `SubscriptionChange`
 
-#### RTSN004 — Recepción asíncrona de respuestas IMAP
+The backend must verify that enabling `CONDSTORE` and establishing the subscription both succeed. Monitoring is not operational if these prerequisites are missing or either operation fails.
 
-La biblioteca IMAP del backend deberá procesar continuamente las respuestas no solicitadas del servidor, incluso cuando no haya comandos IMAP pendientes. Las notificaciones de mensajes y cambios de indicadores se recibirán mediante `STATUS`; las de estructura y suscripción de carpetas, mediante `LIST`.
+The subscription must cover personal folders without issuing `SELECT` for each folder. **Neither `IDLE` nor per-message `MODSEQ` tracking or `CHANGEDSINCE`-based incremental synchronization is required or used for this monitoring design.**
 
-El procesamiento de eventos no deberá bloquear la lectura de respuestas de la conexión.
+**Related functional requirements:** RFSN001–RFSN004, RFSN011.
 
-**Funcionales:** RFSN001–RFSN005.
+#### RTSN004 — Asynchronous IMAP response handling
 
-#### RTSN005 — Interpretación de STATUS parcial
+The backend's IMAP client must continuously process unsolicited server responses, even when no IMAP command is outstanding.
 
-Las respuestas `STATUS` pueden incluir solo los atributos afectados por un cambio. El backend deberá identificar los atributos efectivamente presentes y no interpretar los campos ausentes como valores cero.
+Message and flag changes are received through `STATUS` responses; folder structure and subscription changes are received through `LIST` responses. Event handlers must not block the connection's response-reading loop.
 
-Se tendrán en cuenta, cuando aparezcan, `MESSAGES`, `UNSEEN`, `UIDNEXT` y `HIGHESTMODSEQ`. Este último sirve como indicador de cambios de flags; no se utilizará para mantener una copia incremental de los mensajes.
+**Related functional requirements:** RFSN001–RFSN005.
 
-**Funcionales:** RFSN002–RFSN004, RFSN006.
+#### RTSN005 — Handling partial STATUS responses
 
-#### RTSN006 — Interpretación de LIST y cambios de carpeta
+An unsolicited `STATUS` response may contain only the attributes affected by a change. The backend must inspect which attributes are actually present; absent attributes must **not** be interpreted as zero values or changes.
 
-Para procesar eventos `MailboxName` y `SubscriptionChange`, el backend interpretará las respuestas `LIST` y sus atributos.
+Relevant attributes include `MESSAGES`, `UNSEEN`, `UIDNEXT`, and `HIGHESTMODSEQ` when supplied. `HIGHESTMODSEQ` may indicate flag changes but must not be used to maintain an incremental local message store.
 
-En particular, deberá reconocer `OLDNAME` para identificar renombrados, `\\NonExistent` para identificar eliminaciones y `\\Subscribed` para conocer el estado de suscripción.
+**Related functional requirements:** RFSN002–RFSN004, RFSN006.
 
-Varias respuestas `LIST` pueden corresponder a una misma operación. Una respuesta sin atributos, por sí sola, no deberá interpretarse necesariamente como la creación de una carpeta.
+#### RTSN006 — Handling LIST and folder changes
 
-**Funcionales:** RFSN005, RFSN008.
+The backend must interpret unsolicited `LIST` responses for `MailboxName` and `SubscriptionChange` events.
 
-### Actualización de datos y comunicación con Vue
+It must recognize `OLDNAME` for renames, `\\NonExistent` for deletions, and `\\Subscribed` for subscription state.
 
-#### RTSN007 — Conexión WebSocket por sesión
+Multiple `LIST` responses may describe a single operation. A response without these attributes must not, on its own, be treated as proof that a folder has just been created.
 
-El frontend mantendrá **una conexión WebSocket bidireccional por sesión activa** con el backend.
+**Related functional requirements:** RFSN005, RFSN008.
 
-Por ese único canal circularán las solicitudes de los distintos módulos, sus respuestas y los eventos asíncronos de correo. No se abrirán WebSockets adicionales por carpeta o funcionalidad.
+### Data updates and client communication
 
-**Funcionales:** RFSN009.
+#### RTSN007 — WebSocket connection per session
 
-#### RTSN008 — Enrutamiento de notificaciones
+The Postela backend must support **one bidirectional WebSocket connection per active client session**.
 
-El backend identificará la cuenta y las sesiones destinatarias de cada cambio detectado en IMAP y transmitirá únicamente las notificaciones que les correspondan.
+That channel must carry requests, responses, and asynchronous notifications for all modules. The protocol must not require additional WebSocket connections for each folder or feature.
 
-El canal de notificaciones permitirá distinguir los cambios en mensajes, indicadores y estructura de carpetas, así como el nombre de la carpeta afectada.
+The client may be implemented using any technology capable of speaking the defined protocol.
 
-El formato concreto de los mensajes WebSocket se definirá durante la implementación.
+**Related functional requirements:** RFSN009.
 
-**Funcionales:** RFSN006–RFSN010.
+#### RTSN008 — Notification routing
 
-#### RTSN009 — Recarga de la página de mensajes visible
+The backend must associate each detected IMAP change with its account and route notifications only to sessions authorized for that account.
 
-Cuando cambie la carpeta abierta, el backend atenderá la solicitud de refresco recuperando **únicamente la página de mensajes visible**, con su paginación y ordenación actuales, mediante una conexión IMAP bajo demanda.
+The notification protocol must distinguish changes affecting messages, flags, or folder structure and must identify the affected folder.
 
-El frontend sustituirá el listado mostrado por el resultado. No se compararán listados para reconstruir altas, bajas o movimientos, ni se consultarán páginas no visibles.
+The precise WebSocket message format remains an implementation decision.
 
-Si cambia una carpeta que no está abierta, se actualizarán sus contadores y estado sin recargar su listado de mensajes.
+**Related functional requirements:** RFSN006–RFSN010.
 
-**Funcionales:** RFSN006, RFSN007.
+#### RTSN009 — Reloading the visible message page
 
-#### RTSN010 — Ausencia de almacenamiento de mensajes
+When the client requests a refresh of the open folder following a change, the backend must retrieve **only the currently visible page of messages**, using the requested pagination and sort order, through an on-demand IMAP connection.
 
-El backend consultará los mensajes directamente al servidor IMAP y los entregará al frontend cuando sean solicitados. **No almacenará mensajes de correo en SQLite ni mantendrá un repositorio local de mensajes.**
+The client replaces its displayed message list with the response. The backend must not calculate differences between successive message lists, fetch unrelated pages, or identify individual changed message UIDs solely to refresh the list.
 
-Los datos de las respuestas se tratarán para atender la operación solicitada, sin crear una copia persistente del correo.
+For folders that are not open, only the relevant counters and folder state need updating.
 
-**Funcionales:** RFSN007, RFSN018.
+**Related functional requirements:** RFSN006, RFSN007.
 
-### Gestión de desconexiones
+#### RTSN010 — No message storage
 
-#### RTSN011 — Detección de desconexión IMAP
+The backend must retrieve email messages directly from the IMAP server when requested and deliver the requested data to the authorized client. **It must not store email messages in SQLite or in any other persistent local message repository.**
 
-El backend deberá detectar la finalización o el fallo de la conexión de supervisión IMAP y marcarla como no operativa.
+Message data may be processed in memory as needed to fulfill a request; this does not authorize local storage of a message archive.
 
-La detección no deberá depender de que el usuario realice una operación en la interfaz. El mecanismo concreto de comprobación de conexiones inactivas y sus tiempos de espera quedan pendientes de definir.
+**Related functional requirements:** RFSN007, RFSN018.
 
-**Funcionales:** RFSN011.
+### Disconnections and recovery
 
-#### RTSN012 — Reconexión IMAP y restauración de la suscripción
+#### RTSN011 — Detecting IMAP disconnections
 
-Ante una desconexión involuntaria, el backend efectuará **hasta tres intentos de reconexión**.
+The backend must detect when the persistent IMAP monitoring connection terminates or fails and mark it unavailable. Detection must not depend on the user issuing a new operation.
 
-Cada intento que consiga conectar deberá restablecer la autenticación y ejecutar nuevamente `ENABLE CONDSTORE` y la suscripción `NOTIFY PERSONAL` con los eventos de RTSN003.
+The exact method and timeouts for detecting inactive connections remain to be decided.
 
-No se considerará recuperada la supervisión hasta completar estas operaciones. Los intervalos entre intentos y tiempos de espera se decidirán durante la implementación.
+**Related functional requirements:** RFSN011.
 
-**Funcionales:** RFSN012, RFSN013.
+#### RTSN012 — IMAP reconnection and subscription restoration
 
-#### RTSN013 — Finalización por fallo definitivo de IMAP
+After an unexpected IMAP disconnection, the backend must make **up to three reconnection attempts**.
 
-Una vez agotados los tres intentos de reconexión IMAP, el backend deberá comunicar al frontend el motivo del fallo y cerrar de forma controlada su conexión WebSocket, finalizando la sesión afectada.
+For each successful network reconnection, the backend must authenticate again, enable `CONDSTORE`, and reestablish the `NOTIFY PERSONAL` subscription with the events defined in RTSN003.
 
-El frontend deberá reconocer este cierre como definitivo y no iniciar un nuevo ciclo de tres reconexiones WebSocket por la misma causa.
+Monitoring may be considered restored only after these steps succeed. Retry intervals and timeouts remain to be determined.
 
-**Funcionales:** RFSN014, RFSN016.
+**Related functional requirements:** RFSN012, RFSN013.
 
-#### RTSN014 — Reconexión WebSocket
+#### RTSN013 — Final IMAP reconnection failure
 
-El frontend será responsable de reconectar su WebSocket cuando se interrumpa inesperadamente, con **un máximo de tres intentos**.
+After all three IMAP reconnection attempts fail, the backend must send a reason identifying the mail-server connectivity failure, intentionally close the affected client's WebSocket connection, and terminate the affected session.
 
-Si vuelve a conectar y la sesión sigue siendo válida, podrá continuar sin solicitar de nuevo las credenciales. La conservación temporal de la sesión en el backend durante la interrupción se detallará en los requisitos de sesiones.
+The close reason must allow the client to recognize definitive session termination without starting another three WebSocket reconnection attempts for the same failure.
 
-Los intervalos y tiempos de espera concretos quedan pendientes de definir.
+**Related functional requirements:** RFSN014, RFSN016.
 
-**Funcionales:** RFSN015.
+#### RTSN014 — WebSocket reconnection
 
-#### RTSN015 — Identificación de cierres controlados
+The client application is responsible for reconnecting its WebSocket after an unexpected interruption, with **a maximum of three attempts**.
 
-Las finalizaciones deliberadas de WebSocket deberán transmitir un motivo reconocible para el frontend, usando un código de cierre WebSocket apropiado o un mensaje de aplicación antes del cierre.
+If the connection is restored and the session remains valid, the client may resume without asking the user to enter credentials again. The backend's session-retention behavior while the WebSocket is unavailable will be specified in the session requirements.
 
-Un cierre comunicado como definitivo impedirá iniciar reintentos automáticos. Si la conexión se interrumpe sin que el cliente reciba una indicación fiable de finalización controlada, se aplicará la política de reconexión inesperada.
+Retry intervals and timeouts remain to be determined.
 
-Los códigos y mensajes concretos se definirán durante la implementación.
+**Related functional requirements:** RFSN015.
 
-**Funcionales:** RFSN014, RFSN016.
+#### RTSN015 — Identifying intentional WebSocket closure
 
-#### RTSN016 — Fallo definitivo de WebSocket
+Intentional WebSocket termination must convey a reason identifiable by the client, using an appropriate WebSocket close code or an application message delivered before closing.
 
-Si fallan los tres intentos de reconexión WebSocket, el frontend deberá finalizar la sesión local, ejecutar el logout y mostrar un error que identifique al backend como destino inaccesible.
+A definitive termination reason must suppress automatic reconnection. If the client does not receive a reliable indication of intentional termination, it must apply the unexpected-disconnection retry policy.
 
-**Funcionales:** RFSN017.
+Exact close codes and message formats remain to be decided.
 
-#### RTSN017 — Reconstrucción del estado tras recuperar la conexión
+**Related functional requirements:** RFSN014, RFSN016.
 
-Tras recuperar una conexión IMAP o WebSocket, Postela ejecutará el flujo de obtención del estado inicial de la interfaz, **sin solicitar de nuevo las credenciales si la sesión sigue siendo válida**.
+#### RTSN016 — Final WebSocket reconnection failure
 
-Se recuperarán el árbol de carpetas, sus contadores y la página de mensajes que esté visible. No se descargarán todos los mensajes ni se procesará un historial incremental de eventos perdidos durante la interrupción.
+After three unsuccessful WebSocket reconnection attempts, the client must clear its local session, log the user out, and display an error identifying the backend as unreachable.
 
-**Funcionales:** RFSN018.
+**Related functional requirements:** RFSN017.
 
-## Validación realizada
+#### RTSN017 — Restoring state after reconnection
 
-El mecanismo central de supervisión se ha probado con **Dovecot 2.3.21.1** y **Go 1.24.4**, utilizando `github.com/kiliant/go-imap` **v1.3.1** como biblioteca candidata.
+After IMAP or WebSocket connectivity is successfully restored, Postela must run the initial client-state retrieval flow **without requesting credentials again while the session remains valid**.
 
-Se verificaron la autenticación mediante STARTTLS, `ENABLE CONDSTORE`, `NOTIFY PERSONAL` y la recepción asíncrona de `STATUS` y `LIST` para mensajes nuevos, cambios de leído/no leído, movimientos, creación de carpetas, suscripciones, renombrados con `OLDNAME` y eliminaciones con `\\NonExistent`.
+The recovery flow must reload the folder tree, folder counters, and the currently visible message page. It must not download all messages or replay an incremental history of events missed during the disconnection.
 
-Estas pruebas demuestran la compatibilidad del mecanismo en el entorno comprobado; **no suponen todavía la adopción definitiva de la biblioteca** ni validan su comportamiento durante desconexiones prolongadas o reconexiones.
+**Related functional requirements:** RFSN018.
 
-## Decisiones técnicas pendientes
+## Compatibility verified
 
-No se fijan aún la política de tiempos de espera y separación entre reintentos, la detección de conexiones inactivas, los códigos y formatos exactos del protocolo WebSocket ni el plazo durante el que el backend conserva una sesión tras perder su WebSocket. Esos detalles se acordarán cuando corresponda, sin alterar los comportamientos funcionales definidos.
+The core monitoring mechanism was tested against **Dovecot 2.3.21.1** using **Go 1.24.4** and `github.com/kiliant/go-imap` **v1.3.1** as a candidate library.
+
+The tests confirmed STARTTLS authentication, `ENABLE CONDSTORE`, `NOTIFY PERSONAL`, and asynchronous `STATUS` and `LIST` notifications for new messages, read/unread changes, moves between folders, folder creation, subscriptions, renames with `OLDNAME`, and deletions with `\\NonExistent`.
+
+These tests establish compatibility for the tested environment. **They do not constitute a final decision to adopt the library**, nor do they verify resilience during prolonged network outages or automatic reconnections.
+
+## Open technical decisions
+
+Retry delays and timeouts, idle-connection failure detection, exact WebSocket message formats and close codes, and how long the backend retains a session after WebSocket loss remain to be specified. These choices must preserve the functional behavior defined in the related `RFSN` requirements.
