@@ -12,7 +12,7 @@ This document defines how the Postela backend persists its own account data, pro
 
 It describes the **technical implementation** of behaviors established in `RFDS`. General backend configuration, session management, security, and service startup are defined in `RTCA`.
 
-Postela must **never persist email messages, mail-server passwords, session tokens, or session state**. Email messages remain on the IMAP server. The database is reserved for Postela's own account records, sender identities, contacts, trusted senders, account-wide preference overrides, and client-specific preferences.
+Postela must **never persist email messages, mail-server passwords, session tokens, or session state**. Email messages remain on the IMAP server. The database is reserved for Postela's own account records, sender identities, contacts, trusted senders, account-wide preference overrides, registered client applications, and client-specific preferences.
 
 ## Technical requirements
 
@@ -24,7 +24,7 @@ The backend must use **SQLite** as the initial persistent storage engine for Pos
 
 The initial architecture must not require a separately managed database server, such as PostgreSQL or MariaDB.
 
-**Related functional requirements:** RFDS001–RFDS028.
+**Related functional requirements:** RFDS001–RFDS034.
 
 #### RTDS002 — Write-Ahead Logging mode
 
@@ -60,7 +60,7 @@ All account-owned records must be associated with their owning account, and back
 
 References to another account's records must not be accepted simply because their numeric identifiers exist.
 
-Deleting an account must remove its owned sender identities, contacts, contact email addresses, contact telephone numbers, trusted senders, account-wide preferences, and client-specific preferences using appropriate foreign keys and `ON DELETE CASCADE` rules.
+Deleting an account must remove its owned sender identities, contacts, contact email addresses, contact telephone numbers, trusted senders, account-wide preferences, registered client applications, and their client-specific preferences using appropriate foreign keys and `ON DELETE CASCADE` rules.
 
 Deleting data in Postela must not issue deletion commands against the remote mail server.
 
@@ -177,13 +177,13 @@ The primary key must be the composite (`account_id`, `key`), preventing multiple
 
 The backend must validate each account-wide preference's supported key, type, and value before saving it.
 
-This table stores **only account-wide overrides**, not language, theme, or other client-specific settings, which have a separate schema defined in RTDS032.
+This table stores **only account-wide overrides**, not client-defined settings such as language, theme, or application layout. Generic client-specific settings are stored separately under RTDS032–RTDS033.
 
 **Related functional requirements:** RFDS019–RFDS021.
 
 #### RTDS017 — Preference overrides and resolution
 
-Only **user-customized account-wide preference overrides** must be stored in `account_preferences`. Client-specific language and theme values have separate initialization and persistence rules under RTDS033.
+Only **user-customized account-wide preference overrides** must be stored in `account_preferences`. Generic client-specific preference values have separate initialization and persistence rules under RTDS033 and RTDS037.
 
 The effective value must be resolved in this precedence order:
 
@@ -203,11 +203,11 @@ Account data modifications, including both kinds of preference, must follow the 
 
 The backend must not introduce edit locks, conflict-version checks, or conflict-resolution dialogs for this data.
 
-After a successful transaction commits, the backend must notify authorized sessions through the existing WebSocket mechanism. **Account-wide changes** must reach the account's other active sessions; **client-specific preference changes** must reach only the same account-and-client-application sessions, as specified in RTDS035.
+After a successful transaction commits, the backend must notify authorized sessions through the existing WebSocket mechanism. **Account-wide changes** must reach the account's other active sessions; **client-specific preference changes** must reach only the same account-and-client-application sessions, as specified in RTDS039.
 
 Notifications must not be emitted as successful updates before the underlying transaction has committed.
 
-**Related functional requirements:** RFDS023, RFDS024, RFDS028.
+**Related functional requirements:** RFDS023, RFDS024, RFDS030.
 
 ### Schema versioning and migrations
 
@@ -318,56 +318,135 @@ The backup directory must be independently configurable and protected against un
 
 Data and backup paths must not expose persistent files as publicly served application resources.
 
-### Client-specific preference storage
+### Registered applications and generic client preferences
 
-#### RTDS032 — Client preference schema and isolation
+#### RTDS032 — Registered client applications
 
-The backend must store application-specific preferences separately from account-wide overrides, using a `client_preferences` table with:
+The backend must maintain an `account_clients` table with:
 
-- `account_id`: the authenticated owning account, referencing `accounts.id`.
-- `client_id`: stable application identifier, independent of device and application version.
-- `key`: client-specific preference name, initially including `language` and `theme`.
-- `value`: stored preference value.
+- `account_id`: foreign key referencing `accounts.id`.
+- `client_id`: stable client application identifier.
+- `last_login_at`: timestamp of the most recent successful login by that account and application.
 
-The primary key must be (`account_id`, `client_id`, `key`), so each account and application has at most one value per preference. Foreign-key cascading must remove these records when the owning account is deleted.
+The composite primary key must be (`account_id`, `client_id`). Each registration belongs to one account, even when no preferences have yet been stored.
 
-There must be **no fallback from this table to `config.toml` or `config.default.toml`**. The backend must not define or maintain catalogs of client-supported languages or themes.
+The table must support cascading deletion when the owning account is removed. The `client_id` is an application identifier, **not an authentication credential or separate authorization boundary**.
 
-**Related functional requirements:** RFDS025, RFGS001–RFGS003.
+**Related functional requirements:** RFDS025–RFDS026, RFDS032–RFDS034.
 
-#### RTDS033 — Insert-only initialization at login
+#### RTDS033 — Generic client preferences table
 
-Following successful authentication, the backend must associate the submitted `client_id` with the session and, when supplied, initialize `language` and `theme` values for the account and application.
+The `client_preferences` table must contain:
 
-Each initial preference must be inserted **only if no record exists for (`account_id`, `client_id`, `key`)**. Concurrent or repeated logins must not overwrite an existing stored value; the operation must be safe against conflicting inserts.
+- `account_id`: the owning mail account.
+- `client_id`: the registered client application.
+- `key`: arbitrary application-defined preference name.
+- `value`: JSON value stored with its original JSON type.
 
-If a preference is omitted during login and has no stored value, the backend must leave it absent. An initial value is persistent client configuration, **not an account-wide preference override**.
+The composite primary key must be (`account_id`, `client_id`, `key`), with a composite foreign key (`account_id`, `client_id`) referencing `account_clients` (`account_id`, `client_id`) and **`ON DELETE CASCADE`**.
 
-**Related functional requirements:** RFDS026, RFGS004.
+No preference name or application-specific schema is reserved by Postela. Language, theme, and other frontend settings are ordinary examples, not specially handled fields.
 
-#### RTDS034 — Client preference retrieval and updates
+The backend must never use account-wide preference fallback rules or TOML defaults to synthesize values for missing client preferences.
 
-Once the authenticated WebSocket is established, the backend must retrieve the stored language and theme for that session's `account_id` and `client_id`. **Only existing preference values** must be included in the client state; missing values must not be synthesized.
+**Related functional requirements:** RFDS025, RFDS027–RFDS029.
 
-A request to update language or theme must identify the client application and be scoped to the authenticated account. The backend must validate the client identifier and the value's permitted representation and length without requiring knowledge of the client application's language or theme catalog.
+#### RTDS034 — TOML-configured resource limits
 
-An explicit preference change must update or create the corresponding record, following the agreed last-write-wins policy. Changes must never affect another account or application identifier.
+The initial backend configuration must define these defaults, individually overridable through the layered TOML configuration system:
 
-**Related functional requirements:** RFDS027, RFGS005, RFGS006, RFGS008.
+- Maximum **20** registered client applications per mail account.
+- Maximum **200** stored preference keys per registered client application and account.
+- Maximum **200** preference entries submitted in one operation.
+- Maximum preference-key length of **128 Unicode characters**.
+- Maximum serialized JSON value size of **65,536 bytes (64 KiB)**.
+- Application inactivity retention of **30 days** since the most recent successful login.
 
-#### RTDS035 — Client-specific notification routing
+These are configurable **limits**, not application-specific preference defaults. The backend must apply them to relevant login initialization, registration, and preference write operations.
 
-After a client preference update commits successfully, the backend must notify only active WebSocket sessions associated with the **same account and `client_id`**.
+**Related functional requirements:** RFDS031–RFDS034.
 
-Other applications used by that account must not receive that client-specific update. This restriction does not affect the existing account-wide notifications delivered to all authorized sessions of the account.
+#### RTDS035 — Preference key and value validation
 
-**Related functional requirements:** RFDS023, RFDS028, RFGS007.
+Preference keys must be nonempty valid UTF-8 strings within the configured maximum character length. Control characters must be rejected, but no mandatory naming convention or prefix may be imposed. Keys must be compared **case-sensitively**.
+
+Values must be valid JSON and may be strings, numbers, booleans, `null`, arrays, or objects. The maximum size must be measured from the serialized JSON value in bytes. Reading and writing values must preserve JSON types without forcing all data into strings or converting arbitrary application-defined structures.
+
+The backend must reject invalid entries with actionable errors, without modifying their existing values. It must not enforce application-specific meaning or a frontend preference schema.
+
+**Related functional requirements:** RFDS025, RFDS029, RFDS031.
+
+#### RTDS036 — Application registration and LRU rotation
+
+Following successful authentication with a non-null `client_id`, Postela must reuse an existing `account_clients` registration when one exists. Otherwise, it must attempt to register the new account-and-application combination.
+
+When the configured maximum number of registrations has been reached, the backend must select the registered client with the **oldest `last_login_at` that has no valid sessions**. Its registration and all associated preferences must be removed and replaced with the new registration.
+
+The eviction and registration must be performed **atomically in one SQLite transaction**, with proper synchronization of concurrent logins so the maximum registration count cannot be exceeded.
+
+Applications with valid sessions, including temporarily disconnected sessions still eligible for reconnection, must not be evicted. If no registration is eligible for removal, the new login must still succeed but **no client-specific preference storage may be initialized or accessed for that unregistered application** until a registration slot is available. Existing account-wide features remain available.
+
+**Related functional requirements:** RFDS026, RFDS032.
+
+#### RTDS037 — Login timestamp and insert-only preference initialization
+
+For an existing or newly registered application, `last_login_at` must be set to the time of each **successfully completed login**. WebSocket traffic, authenticated operations after login, heartbeats, and reconnections of an existing session must not update it.
+
+When the login includes a set of initial client preferences, each valid entry must be inserted **only if (`account_id`, `client_id`, `key`) has no stored value**. Use conflict-safe insert semantics so repeated or concurrent logins cannot overwrite saved preferences.
+
+Entries that fail key, value, or quota validation must be reported individually; valid entries may still be stored. The overall login must not fail on preference errors. When the initial entry count exceeds the configured per-operation limit, reject the entire preference batch, **not the authenticated login**.
+
+If the session has no `client_id` or application registration was unavailable, do not initialize client-specific preferences.
+
+**Related functional requirements:** RFDS026–RFDS027, RFDS031–RFDS033.
+
+#### RTDS038 — Reading and batch-writing preferences
+
+When the authenticated WebSocket is established, the backend must make the existing preferences of the session's registered account-and-client application available without inventing absent values. It must also provide a single operation to read the complete set.
+
+One write operation must support creating or updating multiple keys, preserving JSON value types. It must independently validate entries and provide per-key results for invalid entries while allowing valid changes to complete.
+
+A write request exceeding the configured entry-count limit must be rejected in full. When a registered application has reached its stored-key quota, writes to existing keys may continue, while new keys must be rejected.
+
+All reads and writes must be scoped to the authenticated account and its **session-bound client identifier**. A session with `client_id = null`, or an unregistered client identifier, must not access this storage. The public API must not expose deletion of individual client-preference keys.
+
+**Related functional requirements:** RFDS026, RFDS028–RFDS031.
+
+#### RTDS039 — Scoped change notifications
+
+After a successful preference write has committed, the backend must send **one event for the operation's successful changes** to the other active WebSocket sessions matching both the authenticated `account_id` and `client_id`.
+
+It must never notify other client applications, other accounts, or sessions without a client identifier of application-specific changes. Rejected entries must not be reported as successful changes.
+
+Account-wide preference notifications are unaffected and continue to reach all authorized sessions of the owning account.
+
+**Related functional requirements:** RFDS023, RFDS029–RFDS030.
+
+#### RTDS040 — Daily inactivity cleanup
+
+The backend must run a daily internal maintenance task to find `account_clients` records whose `last_login_at` is older than the configured inactivity period, initially **30 days**.
+
+Before deleting a registration, the backend must verify that no **valid session** exists for that account-and-client application. An application with a valid session must be retained, even if its last recorded login exceeds the retention period.
+
+Delete eligible registrations through their foreign-key cascade, including all `client_preferences`. A successful deletion must free the application registration slot. The task must not require an external scheduler, public API, administrative panel, or CLI.
+
+**Related functional requirements:** RFDS032–RFDS034.
+
+#### RTDS041 — Storage consistency and race safety
+
+Account deletion, LRU replacement, preference initialization, quota enforcement, batch updates, and inactivity cleanup must preserve database integrity under concurrent sessions.
+
+Insertion and quota checks must not allow more registered applications or preference keys than the configured maximum. Before rotating or cleaning a registration, the backend must account for valid sessions, not merely whether a WebSocket is currently connected.
+
+Partial errors in a batch must not corrupt previously stored preferences. Notifications must describe only committed changes and must not be emitted before their database transactions complete.
+
+**Related functional requirements:** RFDS024–RFDS034.
 
 ## Open implementation details
 
 The following are intentionally not yet fixed:
 
-- Concrete TOML configuration key names for storage and backups, and their default values.
+- Concrete TOML configuration key names for storage, backups, and client-preference quotas/retention; the approved client-preference limit defaults are fixed above.
 - SQLite database filename and on-disk directory defaults.
 - SQLite driver/library selection, pool size, and busy-timeout defaults.
 - Migration naming and metadata format, and the specific mechanism for coordinating versioned releases.
