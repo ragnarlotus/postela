@@ -136,6 +136,14 @@ After authentication, the client establishes its **one authenticated WebSocket c
 
 The backend must continue enforcing session validity and authorization for operations made over an established WebSocket.
 
+The client may optionally provide a stable application identifier (`client_id`) during HTTPS login. If omitted, the session's `client_id` must be `null`; mail functions and account-wide preferences must remain available without it.
+
+When provided, `client_id` must be a nonempty, case-sensitive ASCII string of **at most 128 characters**, using only letters, digits, periods (`.`), hyphens (`-`), and underscores (`_`). No reverse-domain or other naming convention may be required. An invalid supplied identifier must be rejected as an invalid login request.
+
+The backend must bind the identifier to the authenticated session and keep it **immutable for the lifetime of that session**, including WebSocket reconnections. The WebSocket must inherit it from the session, without relying on an identifier declared in each message. If a client-preference operation supplies an identifier, the backend must reject it unless it matches the session-bound value.
+
+The identifier only distinguishes client applications; it is **not an authentication credential** and must not be treated as an authorization boundary between applications of the same authenticated account. Generic application preference storage is defined in [Functional data storage](../functional/data-storage.md) and [Technical data storage](./data-storage.md).
+
 #### RTCA016 — Browser-origin and request protection
 
 The backend must validate browser WebSocket `Origin` values against explicitly authorized origins and must apply suitable protections against cross-site requests in browser-facing HTTP endpoints, including login.
