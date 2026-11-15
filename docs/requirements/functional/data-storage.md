@@ -38,7 +38,7 @@ An authentication failure or a period of inactivity must not delete a registered
 
 Removing a registered account from Postela must require an explicit action.
 
-Deleting an account must also delete its associated sender identities, contacts, trusted senders, account-wide preference overrides, and client-specific preferences.
+Deleting an account must also delete its associated sender identities, contacts, trusted senders, account-wide preference overrides, registered client applications, and their preferences.
 
 This operation must **never delete the mailbox or any email messages on the mail server**.
 
@@ -46,7 +46,7 @@ This operation must **never delete the mailbox or any email messages on the mail
 
 Each account must have its own identities, contacts, trusted senders, and preferences.
 
-All authorized sessions of the same account must have access to that account's persistent data. Sessions belonging to other accounts must not be able to access or modify it.
+All authorized sessions of the same account must have access to its account-wide persistent data. Client-specific preferences must be accessible only through sessions associated with the corresponding application identifier. Sessions belonging to other accounts must not be able to access or modify any of that account's data.
 
 A shared, global contacts address book is outside the initial scope.
 
@@ -142,7 +142,7 @@ Trusting a sender must **never permit execution of active or unsafe email conten
 
 Each account must have its own persistent account-wide preferences, shared across all its authorized sessions and client applications.
 
-Examples include message-list page size, default message sorting, time-zone override, automatic marking as read, and preferred message content format. **Interface language and visual theme are client-specific preferences**, not account-wide settings.
+Examples include message-list page size, default message sorting, time-zone override, automatic marking as read, and preferred message content format. Client-defined interface settings, such as language and theme, may instead be stored through the generic client-preference facility; they are not predefined account-wide settings.
 
 #### RFDS020 — Three-level preference precedence
 
@@ -158,7 +158,7 @@ The administrator must be able to customize the defaults without editing each ac
 
 For **account-wide preferences**, Postela must retain only values explicitly customized by the user, rather than copying all defaults into each account.
 
-When a user resets an account-wide preference, its customized value must be removed and the current effective default must apply. The distinct client-specific initialization rules are defined in RFDS026.
+When a user resets an account-wide preference, its customized value must be removed and the current effective default must apply. The distinct client-specific initialization rules are defined in RFDS027.
 
 #### RFDS022 — Default changes and new preferences
 
@@ -174,7 +174,7 @@ The source and layering of application and administrator configuration are defin
 
 When contacts, sender identities, trusted senders, or **account-wide preferences** are modified, Postela must notify the other active sessions authorized for the same account so their views can reflect the updated data.
 
-Client-specific preference changes must follow the narrower account-and-client notification scope defined in RFDS028. No account-data change may be sent to sessions of unrelated accounts.
+Client-specific preference changes must follow the narrower account-and-client notification scope defined in RFDS030. No account-data change may be sent to sessions of unrelated accounts.
 
 #### RFDS024 — Last write wins
 
@@ -182,42 +182,99 @@ If multiple sessions modify the same persistent account data, the **last modific
 
 Postela must not require edit locks, conflict-resolution dialogs, or concurrent-edit version checks for this data.
 
-After a successful modification, the resulting state must be made available to the account's other sessions.
+After a successful modification, the resulting state must be made available to the appropriate authorized sessions, respecting application-specific data isolation.
 
-### Client-specific preferences
+### Client-specific preference storage
 
-#### RFDS025 — Client-specific preference isolation
+#### RFDS025 — Generic client preferences
 
-Postela must retain client-specific preferences separately for each combination of **mail account and stable client application identifier (`client_id`)**.
+Postela must offer a persistent, generic **key-value store** for each combination of mail account and client application identifier (`client_id`).
 
-The application identifier must not depend on a device, installation, or application version. A preference of one client application must not change or override the preference of another client application, even when both are used by the same mail account.
+Client applications must define their own preference keys, supported values, and interpretation. Postela must not predefine preference names or schemas, including for language and theme.
 
-Client-specific preferences must not inherit backend or administrator TOML defaults. Their available values and meaning are defined by the client application.
+Values may contain any valid JSON type: string, number, boolean, `null`, array, or object. The backend must preserve JSON value types without interpreting their application-specific meaning.
 
-#### RFDS026 — Persisting initial client language and theme
+These stored values must **not** fall back to administrator or Postela TOML defaults; the TOML configuration only governs the storage service and its limits.
 
-During successful login, a client must provide its `client_id` and may provide an initial `language` and/or `theme`.
+#### RFDS026 — Optional client identification
 
-For each supplied preference, Postela must save the initial value **only if that account and client application have no stored value for it**. An existing value must never be overwritten by an initial login value.
+A client may authenticate with or without a `client_id`. A session without an identifier must retain access to the account's general mail functions and account-wide preferences but must not use client-specific preference storage or receive client-specific preference notifications.
 
-When no stored value exists and the client provides no initial value, that preference must remain unset. Unlike account-wide preferences, initial client-specific values may be persisted even before the user explicitly changes them.
+Each supplied `client_id` must consistently identify an application across versions, devices, and installations. Preferences belonging to other applications or accounts must remain isolated.
 
-#### RFDS027 — Retrieving and changing client-specific values
+#### RFDS027 — Optional initial preferences at login
 
-After the authenticated WebSocket connection is established, Postela must make the stored client-specific language and theme available to that client **only when a value exists**. It must not invent missing values.
+A client with a `client_id` may submit a batch of initial key-value preferences during login.
 
-A client must be able to change its stored language or theme by submitting its application identifier and selected value. The new value must be persisted for the authenticated account and that application without modifying preferences of other applications.
+For each valid supplied key, Postela must persist the initial value **only when no stored value already exists** for that account and application. Existing values must never be overwritten by login defaults.
 
-#### RFDS028 — Client-scoped preference notifications
+Invalid initial preferences must be rejected individually and reported with their reasons. A valid authentication must **not fail because of invalid initial preferences**; valid entries may still be stored.
 
-When a client-specific preference changes, Postela must notify the other active sessions belonging to the **same mail account and client application**.
+A client that omits initial preferences must not have artificial preference values created on its behalf.
 
-Sessions of the account using other application identifiers must not receive that client-specific update. Account-wide preference changes remain shared among all authorized sessions of the account, as described in RFDS023.
+#### RFDS028 — Retrieving client preferences
+
+Once the authenticated WebSocket is established, Postela must make all stored preferences of the session's account and registered application available together.
+
+The client must also be able to request its complete set of stored preferences through one operation. An empty store must be returned as empty, without inventing values or applying account-wide defaults.
+
+#### RFDS029 — Batch updates and partial errors
+
+An identified client must be able to **create or update multiple preferences in one operation**. The backend must validate each entry independently, persist valid entries, and report rejected entries with the reason for each error.
+
+A request exceeding the configured per-operation entry limit must be rejected in full, without applying any changes.
+
+The initial public client-preference API must **not provide an operation to delete individual preference keys**. Internal deletion during account removal, maintenance, or application rotation remains permitted.
+
+#### RFDS030 — Client-scoped change notifications
+
+After a successful client-preference update, the backend must notify other active sessions of the **same account and `client_id`**.
+
+A batch of changes must produce a **single notification event** for that operation, rather than a separate notification for every changed key. Sessions of other accounts or other client applications must not receive it.
+
+#### RFDS031 — Configurable preference storage limits
+
+The backend must enforce these initial limits, with values configurable through layered TOML settings:
+
+- **200** stored preferences per account and client application.
+- **20** registered client applications per account.
+- **200** preference entries in one operation.
+- **128** Unicode characters per preference key, with keys required to be nonempty and to contain no control characters.
+- **64 KiB (65,536 bytes)** of serialized JSON per preference value.
+
+Preference keys must be compared case-sensitively. Client-specific values must be validated as JSON but not against an application-defined schema.
+
+Reaching the per-application key limit must prevent creating additional keys, **not** updating existing keys. Rejected writes must leave previously stored values unchanged.
+
+#### RFDS032 — Rotation of registered applications
+
+When a successful login introduces a new `client_id` and the account has reached its configured application limit, Postela must **replace the least recently logged-in eligible application**, deleting its registration and preferences before registering the new application.
+
+An application with any **valid session** must not be selected for rotation. When all existing registered applications are protected by valid sessions, the new client must still be allowed to log in, but its application-specific preference storage must remain unavailable until capacity is available.
+
+A login by an already registered application must not cause an application rotation.
+
+#### RFDS033 — Tracking registered application logins
+
+Postela must record the timestamp of the most recent successful login for each registered account and `client_id`.
+
+This timestamp must be updated **only when a login successfully completes**. WebSocket activity, other authenticated operations, and connection maintenance must not update it.
+
+The last-login timestamp must be used to determine application rotation order and maintenance inactivity.
+
+#### RFDS034 — Automatic removal of inactive applications
+
+Postela must run a daily maintenance routine to delete registered client applications and their stored preferences after a configured period with no successful login.
+
+The initial inactivity period must be **30 days**, adjustable through TOML. Applications with any **valid session** must not be removed, even if their recorded last login is older than the configured period.
+
+Deleting an inactive application must free its registration slot. No user-facing administration panel or CLI is required for this cleanup.
 
 ## Scope boundaries
 
 - **Authentication and sessions:** session tokens, passwords, credential handling, and session expiration are defined in [Core architecture](../technical/core-architecture.md) and are not persistent account data.
 - **Mail messages:** Postela does not persist email messages; message reading and management will be specified in their own requirements group.
 - **Mail-server configuration:** domain-level server configuration and per-account exceptions are administered by the backend rather than stored as user-customized mail-account records.
-- **Client-specific behavior:** the language and theme login flow, supported values, and client-side presentation are specified in [General settings](./general-settings.md).
+- **Client applications:** the optional client identifier is bound to a session as specified in [Core architecture](../technical/core-architecture.md). The backend does not define client language or theme choices.
+- **General settings:** user-facing account-wide preferences and message display behavior are specified in [General settings](./general-settings.md).
 - **Technical storage design:** database selection, schema, transactions, access patterns, migration strategy, and integrity rules are defined in [Technical data storage](../technical/data-storage.md).
