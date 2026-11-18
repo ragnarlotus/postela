@@ -331,6 +331,18 @@ The backend must produce **structured JSON logs**, supporting the levels `DEBUG`
 
 The configured logging level must control which entries are emitted, without changing application code.
 
+**Logging failures is a cross-cutting requirement for every backend subsystem**, including IMAP, SMTP, ManageSieve, SQLite, authentication, session management, WebSocket communication, configuration, and internal background operations. Failures must not be silently ignored merely because the operation also reports an error to a client.
+
+Log failures according to their significance:
+
+- **`ERROR`:** operations that ultimately fail, unrecoverable internal errors, database failures, or other problems that prevent the requested work from completing correctly.
+- **`WARN`:** unexpected or recoverable conditions requiring attention, including transient failures for which recovery is attempted and relevant rejected or invalid requests.
+- **`INFO` / `DEBUG`:** ordinary activity and diagnostic details, including individual retry steps where useful; these must not replace the final error log when an operation ultimately fails.
+
+Each failure log must provide enough structured context to identify the affected subsystem, operation, cause, and relevant account/session/request identifiers where available, following the privacy restrictions of RTCA037. The same failure should not be redundantly emitted at every call layer when one contextualized log entry suffices.
+
+As with all logs, emission remains subject to the configured minimum logging level.
+
 #### RTCA037 — Traceability and sensitive-data protection
 
 Logs must include relevant account, session, and request identifiers when needed to diagnose an operation, while avoiding unnecessary disclosure of personal information.
