@@ -10,7 +10,7 @@
 
 This document specifies the technical implementation of mailbox reading and management through IMAP, following the functional requirements in `RFRM`.
 
-The requirements are introduced incrementally as their behavior is agreed. `RTRM001` covers folder hierarchy retrieval and status counters; `RTRM002` covers on-demand account storage usage and limit; `RTRM003` covers creation of individual mailboxes and subfolders. Other folder mutations, message listings, threading, searches, and remaining operations will be specified in subsequent requirements.
+The requirements are introduced incrementally as their behavior is agreed. `RTRM001` covers folder hierarchy retrieval and status counters; `RTRM002` covers on-demand account storage usage and limit; `RTRM003` covers creation of individual mailboxes and subfolders; `RTRM004` covers folder renaming and movement. Folder deletion, message listings, threading, searches, and remaining operations will be specified in subsequent requirements.
 
 ## Technical requirements
 
@@ -124,8 +124,56 @@ Following a confirmed creation, refresh or propagate the affected folder invento
 
 **Related requirements:** RFRM001–RFRM002, RFRM006, RFRM011; RTGS011–RTGS021; RTSN003–RTSN006.
 
+### Folder renaming and movement
+
+#### RTRM004 — Rename or move existing IMAP folders
+
+Postela must expose **two distinct operations**, `rename_folder` and `move_folder`, both implemented using the IMAP `RENAME` command:
+
+- **Rename:** replace the selected folder's final name component while retaining the existing parent and namespace.
+- **Move:** keep the selected folder's final name component while changing its parent, or moving it to the applicable mailbox root.
+
+The backend must use the full IMAP folder names and hierarchy separators obtained from the server. Both operations must preserve the original mailbox's messages and descendant hierarchy as the server allows. The server's `RENAME` semantics, not a sequence of client-side folder-copy operations, are authoritative.
+
+**Validation before `RENAME`:**
+
+1. The source must be an existing folder. **`INBOX` itself must never be renamed or moved**, even if the server permits it; its subfolders may be renamed or moved where eligible.
+2. For a move to a parent folder, verify that the destination parent exists. Allow an existing `\Noselect` parent when the server permits subfolders, but reject a parent with `\Noinferiors`. Other server restrictions remain authoritative.
+3. Reject moving a folder into **itself or any of its descendants**, preventing circular or self-nesting hierarchies.
+4. Reject a target full mailbox name already occupied by **another folder**. Do not overwrite, merge, or silently generate an alternative name. The same restriction applies to conflicting descendants where they can be determined before execution.
+5. Reject invalid requested final folder names under the single-component naming restrictions established for creation in RTRM003, including empty names and embedded hierarchy separators. The server performs definitive validation.
+6. If the requested name and parent already match the current state, return **success with no changes** and do not issue `RENAME`. This is distinct from a destination occupied by another folder.
+
+**Connection loss and uncertain outcome:**
+
+- Because `RENAME` changes server state, do **not** blindly repeat it after a lost connection when its completion is unknown.
+- Obtain a reliable refreshed `LIST` inventory covering the source, target, and affected descendants. Check full mailbox names and hierarchy relationships to distinguish a completed move/rename from no change or a partial/uncertain result.
+- If the entire expected rename or move is confirmed, treat the IMAP change as completed and proceed with the special-folder mapping updates described below.
+- If the inventory reliably confirms that **no change occurred**, Postela may retry `RENAME`, subject to the same validation and failure-handling safeguards.
+- If the observed result is **partial or uncertain**, return an error with the verified state and do not attempt additional modifications or automatic rollback. Definitive IMAP `NO` or `BAD` responses must be reported as failures, not automatically retried as connection errors.
+
+**Preserve account special-folder assignments:**
+
+Following a confirmed IMAP rename or move, Postela must determine which explicit special-folder mappings refer to the renamed/moved folder or descendants whose full names have changed.
+
+- For existing **user overrides**, update each affected full mailbox name in the account's `special_folders` preference while preserving unrelated assignments.
+- For affected **administrator-defined mappings**, leave TOML unchanged and create the appropriate account-specific user override with the new full mailbox name.
+- For **automatically discovered `SPECIAL-USE` mappings**, refresh discovery from the server; do not create an unnecessary explicit override.
+- The account's effective mappings must continue to respect the precedence and validation rules in RTGS. Changes to the `special_folders` preference must use the agreed SQLite atomic-update semantics.
+
+**If SQLite updating the mappings fails after successful IMAP `RENAME`:**
+
+1. **Do not automatically reverse or repeat the successful IMAP rename/move.**
+2. Report the **partial success** explicitly: the folder was renamed or moved, but special-folder mappings could not be updated. Include appropriate error information.
+3. Preserve enough source/destination and affected-mapping information to retry the **mapping update only**, without executing `RENAME` again. Do not silently mark the saved mappings as corrected when the SQLite transaction failed.
+4. Refresh the actual folder hierarchy and special-folder availability and notify other active sessions of the same account of the real observed state, distinguishing committed mappings from unavailable/stale ones.
+
+All operation failures must follow RTCA036–RTCA037's cross-cutting structured logging and sensitive-data protections. Following successful or partially successful server changes, use the existing shared IMAP monitoring and session notification mechanisms rather than creating additional persistent connections.
+
+**Related requirements:** RFRM007–RFRM011; RTGS013–RTGS021, RTGS027; RTCA036–RTCA037; RTSN003–RTSN006.
+
 ## Scope boundaries and follow-up documentation
 
 - **Quota information:** `RTRM002` implements only on-demand `STORAGE` usage and limit, beginning with `GETQUOTAROOT INBOX`. A complete per-mailbox quota-root inventory and other quota resources are outside the initial scope.
-- **Folder modifications and message operations:** `RTRM003` specifies individual folder creation. Folder rename, movement, deletion, and message operations will be added incrementally.
+- **Folder modifications and message operations:** `RTRM003` specifies folder creation and `RTRM004` specifies renaming and movement. Folder deletion and message operations will be added incrementally.
 - **Server authority:** actual mailbox inventory, status values, attributes, and access restrictions come from the IMAP server.
