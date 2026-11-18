@@ -90,7 +90,9 @@ Postela must support deleting IMAP folders, subject to administrator-configurabl
 
 The initial Postela defaults for all three permissions are **disabled**, allowing only the deletion of empty, non-special folders without subfolders.
 
-The mail server's permissions and restrictions must always be enforced, regardless of administrator policy. Postela must not assume that a single IMAP folder-deletion operation also deletes descendants.
+**Deleting `INBOX` must always be prohibited**, regardless of administrator policy. Postela must also prohibit renaming or moving `INBOX` itself while allowing operations on its subfolders if the server permits them.
+
+The mail server's permissions and restrictions must always be enforced. Postela must not assume that a single IMAP folder-deletion operation also deletes descendants.
 
 #### RFRM011 — Folder-change synchronization
 
@@ -100,15 +102,22 @@ Changes must not affect or be disclosed to sessions of another account.
 
 ### Message listing, filtering, and sorting
 
-#### RFRM012 — Individual-message listings
+#### RFRM012 — Configurable individual or grouped folder listings
 
-A mailbox folder listing must show **individual messages**, not grouped conversation entries.
+A folder listing must support two presentation modes, controlled by the account-wide boolean preference `thread_view`:
 
-It must support pagination and the user's effective default sorting preference. Clients may request a temporary different sorting criterion and direction without changing that account-wide preference.
+- **`true` (Postela default):** show one entry per conversation represented in the selected folder, if the server supports the required threading capability.
+- **`false`:** show individual messages as separate entries.
 
-#### RFRM013 — Message list metadata
+The administrator may override the default and the user may override the administrator's setting for their account, following the established user → administrator → Postela precedence.
 
-Each message in a folder listing must provide the information needed to display:
+If conversation grouping is unavailable on the connected IMAP server, Postela must return individual-message entries while preserving the saved preference and informing the client of the unavailable feature.
+
+Both modes must support pagination and the applicable default sorting preference. Clients may temporarily request a different sorting criterion and direction without changing the account-wide preference.
+
+#### RFRM013 — Message list metadata and safe message identifiers
+
+Each individual message entry, or the representative message for a grouped conversation, must provide the information needed to display:
 
 - Its UID, identifying the message within its IMAP folder.
 - Subject.
@@ -118,61 +127,73 @@ Each message in a folder listing must provide the information needed to display:
 - IMAP flags, including read, answered, flagged, and draft status where present.
 - Whether it contains downloadable attachments.
 
-**Recipients (`To` and `Cc`) and message-body previews are not required for list entries.**
+A single-folder list response must include the folder name and its **`UIDVALIDITY` once at response level**. Clients identify messages using the combination of folder, `UIDVALIDITY`, and UID; the folder and `UIDVALIDITY` need not be duplicated inside every list entry.
 
-#### RFRM014 — Metadata-only page retrieval
+**Recipients (`To` and `Cc`) and message-body previews are not required for list entries.** Grouped entries must also supply the conversation counters defined in RFRM055.
 
-For an ordinary message listing, Postela must retrieve only the messages and metadata needed for the requested page and must **not download complete message bodies** merely to render the list.
+#### RFRM014 — Metadata-efficient page retrieval
 
-The backend must not retrieve every message's full content or attachments to sort or paginate a large mailbox. The server-specific sorting and pagination strategies are defined in `RTRM`.
+Postela must not download complete message bodies or attachments merely to render a folder listing.
 
-#### RFRM015 — Quick folder-list filters
+For individual-message listings, it must retrieve detailed metadata only for the requested page. For grouped listings, it may obtain the server-provided conversation structure and UID/flag sets needed to determine grouping, filters, order, and page boundaries, but it must not fetch the full message content or full metadata of every message solely to render a page.
 
-Within a selected folder, clients must be able to request these temporary filters:
+The server-specific sorting, threading, pagination, and temporary in-memory caching strategies belong to `RTRM`.
+
+#### RFRM015 — Quick filters scoped to the selected folder
+
+Within a selected folder, clients must be able to request these temporary quick filters:
 
 - All messages.
 - Unread messages (without `\Seen`).
 - Flagged messages (with `\Flagged`).
 
-Unread and flagged filters must be combinable. These quick filters apply **only to the selected folder, excluding subfolders**.
+Unread and flagged filters must be combinable. **These filters apply only to messages physically present in the selected folder, excluding subfolders, regardless of `thread_multifolder`.**
 
-Sorting and pagination must operate on the filtered results. Quick-filter changes must not modify saved account preferences.
+In a grouped list, a conversation matches if at least one of its messages in that folder satisfies the active filters. Filtering must not split the conversation or reduce its reported message counts to matching messages only. When filters are active, the conversation's representative must be **the most recent message in the selected folder that matches those filters**; with no filters, it is the most recent message in that folder.
 
-#### RFRM016 — Availability of server-side sorting
+Sorting and pagination must operate on the filtered results. Quick-filter changes must not modify saved account preferences. Failures while retrieving information from other folders must not prevent applying these folder-local filters.
 
-Postela must apply a requested sorting criterion when supported by the mail server.
+#### RFRM016 — Sorting availability and safe fallbacks
 
-When the server cannot provide the required sorting capability, Postela must **not download an entire folder's metadata to sort it locally**. It must return the server-provided message order and inform the client that the requested sorting is unavailable.
+Postela must apply a requested sorting criterion when supported by the server and applicable to the listing. If `sender_name` sorting is unavailable, it must prefer `sender_email` as the fallback, preserving the configured direction. For other unavailable criteria, it must prefer date descending, followed by an available criterion where possible.
 
-Detailed `CONTEXT=SORT`, `UID SORT`, and cache behavior belongs to `RTRM`.
+If no configurable sorting criterion is available, Postela must **still return messages in the order provided by IMAP**, without claiming the result is sorted. It must not download an entire folder's message metadata solely to implement an otherwise unavailable sort.
+
+The original user preference must be preserved when a temporary sorting fallback is necessary. The client must receive the effective available sorting options and default. Detailed `SORT`, `ESORT`, `CONTEXT=SORT`, and cache behavior belongs to `RTRM`.
 
 ### Individual messages, conversations, and source content
 
 #### RFRM017 — Read one message
 
-A `read_message` operation must return **only the message selected** using its folder and UID, without searching for related conversation messages.
+A `read_message` operation must return **only the selected message**, identified by folder, `UIDVALIDITY`, and UID, without searching for related conversation messages.
 
 It must provide the relevant message headers (`From`, `To`, `Cc`, `Reply-To`, `Subject`, dates), available HTML and/or plain-text content, MIME/attachment metadata, embedded-resource references, and IMAP flags.
 
+Opening a single message must respect the account's `mark_as_read` preference.
+
 #### RFRM018 — Read an entire conversation separately
 
-A distinct `read_thread` operation must retrieve the message selected by folder and UID **together with all discoverable related messages** in the authenticated account.
+A distinct `read_thread` operation must return **all discoverable related messages across the authenticated account**, including sent and archived messages, regardless of which message of the conversation initiated the request or which folder is open.
 
-Conversation content must not be embedded or grouped into ordinary folder-list entries. Each application chooses whether to request a single message or a thread and how to present it.
+Its result must be the same set of related physical messages when initiated from any member of the same discoverable conversation. It must not be restricted by `thread_multifolder`, which controls grouped-list counters and thread-wide actions rather than reading.
 
-#### RFRM019 — Cross-folder conversation discovery
+A client displaying grouped folders may request `read_thread` when a group is opened; an individual-message view may request `read_message`. Full conversation bodies must **never** be embedded in folder-list entries.
 
-Conversation relationships must be derived from message threading identifiers, including `Message-ID`, `In-Reply-To`, and `References`, **not merely a shared subject**.
+In the initial release, `read_thread` requires the server to advertise `THREAD=REFS`. Where this capability is unavailable, Postela must expose `read_message` instead and inform the client.
 
-A conversation may include received and sent messages, as well as messages in any other folder. It must not depend on the continued existence or location of an arbitrarily designated principal message.
+#### RFRM019 — Cross-folder conversation discovery without local indexing
 
-Moving or permanently deleting one message must not prevent other discoverable related messages from forming the conversation.
+Conversation relationships must be derived from explicit message threading identifiers, including `Message-ID`, `In-Reply-To`, and `References`, **never merely from a shared subject or sender**.
 
-#### RFRM020 — Conversation ordering and physical duplicates
+A conversation may include received and sent messages, as well as messages in any other available folder. It must not depend on the continued existence or location of an arbitrarily designated root message. Postela must preserve relationships it can establish even when intermediate messages have been deleted or moved.
 
-`read_thread` must return the related messages **in chronological order, oldest first**.
+Postela must locate related messages on demand using the IMAP server; it must not persist a local message or conversation index. It must return messages actually found, without claiming it can prove that no additional related messages exist.
 
-It must include the originating folder and UID for every message. If multiple physically distinct messages share the same `Message-ID`, Postela must return all copies rather than silently deduplicating them.
+#### RFRM020 — Conversation ordering, physical copies, and identifiers
+
+`read_thread` must return the related messages **in chronological order, oldest first**, irrespective of the folder or message selected as the entry point.
+
+Every returned physical message must include its source folder, `UIDVALIDITY`, and UID. If multiple physically distinct messages share the same `Message-ID`, Postela must return **all copies**, not silently deduplicate them.
 
 The client may choose to present duplicate copies together visually.
 
@@ -250,9 +271,11 @@ Postela must offer an operation to mark **all currently unread messages in one s
 
 The operation must not include subfolders or download message bodies. It must modify only read flags.
 
-#### RFRM032 — Synchronize flag and count changes
+#### RFRM032 — Synchronize individual flags and conversation counters
 
-Flag changes and bulk read-state operations must be reflected in other sessions of the account, including affected unread counts and message state, through the existing IMAP synchronization architecture.
+Flag changes and bulk read-state operations must be reflected in other sessions of the account through the established IMAP synchronization architecture, including affected folder unread counts, individual message state, and the grouped conversation counters `thread.unread` and `thread.flagged`.
+
+Changing flags must not by itself change which messages belong to a conversation.
 
 ### Moving, deleting, and classifying messages
 
@@ -299,19 +322,27 @@ Emptying `Trash` must always delete its contents permanently, regardless of the 
 
 The backend must not track which messages were visually selected in a client's paginated list.
 
-#### RFRM038 — Delete an entire conversation
+#### RFRM038 — Delete messages belonging to a conversation
 
-A distinct `delete_thread` operation must act on **all discoverable physical messages in the selected conversation**, including received and sent messages in different folders and duplicate copies with the same `Message-ID`.
+A `delete_thread` operation must support deleting the **identified physical messages belonging to a conversation**, including distinct physical copies sharing the same `Message-ID`.
 
-It must respect the current account's `delete_to_trash` policy, with messages already in `Trash` permanently deleted as defined for individual deletion.
+Its scope must respect the account-wide preference `thread_multifolder`: **`false`** affects the selected folder only; **`true`** includes related messages across the account, including `Sent` and `Archive`. The source folder remains relevant when an action originates from a grouped folder listing.
 
-Before execution, the backend must make available the affected message count and source folders so the client can present them to the user as appropriate. **The client, not Postela, decides whether to ask for confirmation.**
+From an **open conversation**, the client may supply the folder/`UIDVALIDITY`/UID identifiers already returned by `read_thread`; Postela must not repeat conversation discovery solely to perform that action. The backend must apply the effective scope and validate message identifiers before modifying them.
 
-#### RFRM039 — Partial failures of cross-folder operations
+From a **grouped listing**, the client can supply the representative identifier; Postela must locate the related messages needed for the effective scope before acting. Complete-conversation deletion must **not be restricted to the detailed conversation view**.
 
-When a multi-message or cross-folder operation is only partially completed, Postela must report which message operations succeeded and which failed when that information is available.
+The operation must respect `delete_to_trash`; messages already in `Trash` are permanently deleted. Postela must not require proof that every possible related message was found before deleting the identified messages. It must report known partial results or failures without claiming more messages were deleted than actually were.
 
-The backend must not imply that deleting a conversation across separate folders is atomic, and must not automatically repeat previously completed destructive actions in a way that risks unintended additional changes.
+The client decides whether and how to present a confirmation before deletion. The backend must not force a separate confirmation workflow or require the client to have fetched a full conversation beforehand.
+
+#### RFRM039 — Partial failures of cross-folder and conversation operations
+
+When a multi-message or cross-folder operation is only partially completed, Postela must report which message operations succeeded and which failed when known.
+
+The backend must not imply that deleting or changing a conversation across folders is atomic, and must not automatically repeat previously completed destructive actions in a way that risks unintended additional changes.
+
+Postela must distinguish unsuccessful IMAP queries from a successfully completed discovery that found no further related messages. Query errors must be reported, and available results may be returned rather than blocking the entire conversation view or subsequent authorized actions. No `complete` boolean claiming a definitive conversation boundary is required.
 
 Affected folder listings and counts must be synchronized with actual server state.
 
@@ -337,9 +368,11 @@ Retention and automatic expunging of messages in `Trash` and `Junk` remain **exc
 
 #### RFRM043 — Client-managed selection and confirmation
 
-Each client application manages message selection, including selection across multiple listing pages, and any user confirmation before destructive operations.
+Each client application manages individual-message selection, including selection across multiple listing pages, and any user confirmation before destructive operations.
 
-Postela must not maintain per-session UI selection state. Batch operations on selected messages must receive explicit UID identifiers from the client, while folder-wide operations such as `empty_folder` must identify the target folder.
+Postela must not maintain per-session UI selection state. Batch operations on selected messages must receive explicit folder/`UIDVALIDITY`/UID identifiers from the client, while folder-wide operations such as `empty_folder` identify the target folder.
+
+A grouped-list thread operation may instead receive its representative message identifier for server-side resolution. Operations from an open conversation may receive the explicit message identifiers already returned by `read_thread`, avoiding redundant discovery.
 
 ### Message search
 
@@ -355,11 +388,13 @@ A global search must cover **all available folders** of the authenticated accoun
 
 Postela must not implicitly exclude those folders or limit the global search to the inbox or subscribed folders.
 
-#### RFRM046 — Search criteria
+#### RFRM046 — Search criteria and date types
 
 The client must be able to filter messages by sender, recipients, subject, message content, dates, and message state/flags.
 
-The search must be performed against the server through IMAP rather than against a local persisted message index.
+Date searches must distinguish **message/sent date** (`sent_date`) from **received/internal date** (`received_date`), with optional start and end dates for either criterion. An unspecified date type must mean `sent_date`. Date criteria are evaluated by calendar days as supported by IMAP.
+
+The search must be performed against the server through IMAP rather than against a locally persisted message index.
 
 #### RFRM047 — Combined criteria and logical operators
 
@@ -379,13 +414,13 @@ Searches must accept a size threshold in **bytes** and support finding messages 
 
 The client may display or collect the value in user-friendly units, but the backend contract uses bytes.
 
-#### RFRM050 — Paginated search results without local indexing
+#### RFRM050 — Paginated, individually identified search results without local indexing
 
-Searches must return paginated results, with the containing folder and UID identifying each result, including when results span multiple folders.
+Advanced searches must return **individual matching messages**, even when `thread_view = true`, rather than grouped conversations. This is the **initial design**, to be reviewed when client implementations can be evaluated.
 
-Postela must not persist emails, maintain a local full-text search index, or require downloading all message bodies for searching.
+Searches must return globally paginated results, with each result identified by its containing folder, `UIDVALIDITY`, and UID, including when results span several folders. A multi-folder search must present one combined result list rather than a separate page per mailbox.
 
-The efficient implementation of multi-folder searching, combining results, and pagination belongs to `RTRM`.
+Postela must not persist emails, maintain a local full-text search index, or require downloading all message bodies for searching. The efficient implementation of multi-folder searching, combining results, and pagination belongs to `RTRM`.
 
 ### Deferred features
 
@@ -401,9 +436,130 @@ Postela must not require public `SUBSCRIBE` or `UNSUBSCRIBE` operations in its f
 
 Folder subscription state remains readable as specified in RFRM005. Subscription editing may be reconsidered separately, without restricting access to unsubscribed folders.
 
+
+### Conversation-aware listings, preferences, and actions
+
+#### RFRM053 — Grouped conversation view preference
+
+The account-wide boolean `thread_view` must control whether folder listings contain conversation entries or individual messages. Its initial Postela default is **`true`**, with administrator and user overrides according to the established preference precedence.
+
+This setting affects the folder-list presentation and the client's default choice between `read_thread` and `read_message`; it must not make `read_message` unavailable. A client must know when the server cannot support grouping, without losing the saved preference.
+
+#### RFRM054 — Reliable grouping and per-folder presence
+
+Grouped listings must identify conversation membership from explicit message relationships rather than grouping unrelated messages solely because their subjects match.
+
+Postela must group conversations **within the selected folder**. A conversation appears in a folder listing if and only if at least one physical message belonging to it exists in that folder. The same conversation may therefore appear in multiple folder listings, but only once per folder.
+
+The representative must belong to the listed folder. It is the newest message from that folder unless active quick filters require the newest matching message, as specified in RFRM015. Conversation data must be retrieved on demand without maintaining a persistent message index.
+
+#### RFRM055 — Configurable multi-folder conversation scope
+
+An account-wide boolean preference `thread_multifolder` must control the scope of **grouped conversation counters and actions**. Its initial Postela default is **`false`**, overridable by the administrator and user.
+
+- **`false`:** count and act on related messages only in the selected folder.
+- **`true`:** count and act on related messages across all available folders of the account, including `Sent`, `Archive`, and other folders.
+
+This preference replaces the previously considered `thread_actions_scope` setting; `thread_actions_scope` must not be introduced as a separate preference.
+
+`thread_multifolder` must **not** change which conversations appear in a particular folder listing, the scope of quick filters, or the account-wide scope of `read_thread`.
+
+#### RFRM056 — Aggregated conversation counters and indicators
+
+Each grouped conversation entry must include:
+
+- `thread.count`: number of physical messages in the effective scope.
+- `thread.unread`: number of those messages without `\Seen`.
+- `thread.flagged`: number of those messages with `\Flagged`.
+
+A grouped conversation is presented as unread if `thread.unread > 0` and flagged if `thread.flagged > 0`. A flagged indicator in a grouped list must be **informational**: toggling individual-message flags belongs to a message view, not a generic group-level star action.
+
+**Folder counters remain strictly folder-local**, even when `thread_multifolder = true`. The same global conversation counters may appear in more than one folder's grouped list, but must not be added to folder counters or treated as additional physical messages.
+
+If an external-folder query fails and a global conversation counter cannot be determined correctly, Postela must return **`null` for the affected counter**, with error information, rather than presenting a partial number as exact. The folder-local quick filters must remain usable.
+
+#### RFRM057 — Quick filters on grouped entries
+
+When `thread_view = true`, the quick filters from RFRM015 must select conversations according to whether **at least one message in the currently displayed folder** matches the requested read/flag conditions.
+
+The whole conversation remains represented by one entry. A filtered entry's representative is the **newest matching message in that folder**. The conversation's counters retain their full effective scope and must not be reduced to only the matching messages.
+
+The application must not search other folders merely to decide whether a grouped conversation satisfies a quick filter, even if `thread_multifolder = true`.
+
+#### RFRM058 — Explicit read and unread actions on grouped conversations
+
+From a grouped folder listing, the user must be able to mark a conversation as read or unread.
+
+The operation must affect the messages belonging to that conversation in the scope defined by `thread_multifolder`:
+
+- Mark as read: set `\Seen` on the applicable unread messages.
+- Mark as unread: clear `\Seen` on all applicable messages.
+
+These **explicit group-wide actions** are separate from automatically marking the selected message as read on `read_thread`; the latter must continue to affect only the message the user opened when `mark_as_read` is enabled.
+
+Affected per-folder state and grouped counters must be synchronized with active sessions.
+
+#### RFRM059 — Grouped-list actions without full message payloads
+
+A grouped folder-list entry must expose its **representative** (folder/`UIDVALIDITY`/UID) and aggregate counters, **not the full set of identifiers of all messages in the conversation**.
+
+The client must be able to request a supported thread-wide operation, including deletion, using this representative. Postela must resolve the relevant physical messages within the effective `thread_multifolder` scope before executing it.
+
+An open conversation may instead supply explicit physical-message identifiers already obtained through `read_thread`. This must avoid redundant conversation discovery and must still respect the effective action scope, applicable account policies, and message identity validation.
+
+#### RFRM060 — Group-aware sorting and pagination
+
+A grouped folder listing must sort **conversations** and then paginate them. `page_size` must represent the number of conversation entries per page when `thread_view = true`, and the number of individual messages when grouping is disabled or unavailable.
+
+The default representative and conversation ordering are based on the selected folder's messages, not the newest message elsewhere in the account. When quick filters are active, the newest matching message in that folder represents the conversation.
+
+For `thread_multifolder = true`, Postela may calculate cross-folder counters **only for the conversations on the requested page**, after applying folder-local filters, sorting, and pagination. This optimization must not change the returned values or which conversations qualify for the page.
+
+#### RFRM061 — Search result sorting and account-independent search defaults
+
+Advanced search results must support temporary sorting by:
+
+- `date` (message date).
+- `folder`.
+- `sender_name` (sender display name).
+- `sender_email` (sender email address).
+- `subject`.
+
+The client must be able to request ascending or descending direction. In the absence of a request override, search defaults must come from administrator-overridable Postela TOML settings: **`[search].sort_by = "date"`** and **`[search].sort_direction = "desc"`** initially. These search defaults are separate from the saved account preference used for ordinary folder listings.
+
+If `sender_name` is unavailable, use `sender_email` where supported while retaining the requested direction. Otherwise use an available date-descending sort, then another available criterion where possible. If the server offers **no usable sorting criterion**, Postela must still return the results in server-provided order, not refuse the search.
+
+Sorting and pagination must apply to the combined multi-folder search result, not independently per folder. Effective sorting availability and defaults must be available to the client.
+
+#### RFRM062 — Safe message identity for all message operations
+
+Postela must provide and validate the combination **folder, `UIDVALIDITY`, and UID** whenever a client identifies a specific message.
+
+This applies to reads, original headers and downloads, attachments, moves, deletions, spam classification, and explicit flag changes—not just destructive operations. A single-folder list may expose folder and `UIDVALIDITY` once at response level; each result spanning several folders must identify its own folder and `UIDVALIDITY`.
+
+An operation must not act on a UID if the specified `UIDVALIDITY` no longer matches the selected server folder. It must report a specific identity-mismatch error rather than silently acting on a potentially different message.
+
+#### RFRM063 — Quota retrieval and change notifications
+
+Quota information must initially be retrieved **on demand** rather than requiring quota queries every time a client loads the folder tree.
+
+After quota information has been requested for an account, Postela must refresh affected quota values when detected message and folder changes could affect usage, and notify relevant active sessions. Related events may be coalesced to avoid duplicate queries.
+
+Clients must be able to distinguish unavailable quota information from a valid zero, and Postela must not calculate quota usage merely by guessing how much a message move or deletion changed storage.
+
+The cache of quota information is transient and account-scoped; its lifecycle and server-specific refresh policy belong to `RTRM`.
+
+#### RFRM064 — Capability-aware client behavior
+
+Clients must be informed of effective Postela operations and options, including threading availability and supported sorting criteria, independently of raw IMAP capability names.
+
+When `thread_view = true` but conversation grouping is unavailable, folder listings must remain usable as individual messages. When a sorting criterion is unavailable, the client must be told the effective supported options without making message retrieval unavailable.
+
+The `session_capabilities` WebSocket protocol and its nested feature/options/default representation belong to `RTCA`, not to this functional document.
+
 ## Boundaries and follow-up documentation
 
-- **General settings:** the user-facing `delete_to_trash` account preference and the administrator-controlled folder-deletion policies must be reflected in the corresponding `RFGS` and `RTGS` documents. Those files are not changed by this document.
-- **Technical reading and management (`RTRM`):** IMAP `MOVE`, `COPY` fallback when needed for moving, flag operations, MIME retrieval, full-header retrieval, attachment handling, `SEARCH`, `SORT`, `ESORT`, `CONTEXT=SORT`, and ordered-UID cache lifetime and regeneration will be specified there. The initial preference is to use server-side ordering, with per-session UID caching only where necessary.
+- **General settings:** the account-wide `delete_to_trash`, `thread_view`, and `thread_multifolder` preferences, the search-sorting TOML defaults, and the administrator-controlled folder-deletion policies must be reflected in the corresponding `RFGS` and `RTGS` documents. Those files are not changed by this document.
+- **Technical reading and management (`RTRM`):** IMAP `MOVE` (without a `COPY`/`STORE`/`EXPUNGE` move fallback), selective permanent deletion, MIME retrieval, header/attachment handling, `SEARCH`, `SORT`, `ESORT`, `CONTEXT=SORT`, `THREAD=REFS`, on-demand cross-folder relationship discovery, and per-session cache lifetimes and invalidation belong there. Postela must not create a persistent message or conversation index.
 - **Synchronization:** refresh and notification behavior follows the existing account monitoring and session requirements, not a separate per-client mailbox watcher.
 - **Server authority:** available mailbox operations, permissions, message flags, quotas, and folder-expiration policies remain constrained by the IMAP server.
