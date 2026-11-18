@@ -32,11 +32,16 @@ It must also indicate the applicable special-folder role (`Sent`, `Drafts`, `Tra
 
 Missing status information must not be represented as a fabricated zero or an invented role.
 
-#### RFRM003 — IMAP quota information
+#### RFRM003 — Storage usage and limit
 
-When the IMAP server supplies quota information, Postela must make available the usage and assigned limits for `STORAGE`, `MESSAGE`, and any other quota resources returned by the server.
+Postela must expose **only the storage space used and the storage limit**, when those values are provided by the IMAP server through the `STORAGE` quota resource:
 
-It must preserve the association between mailboxes and their **quota roots**. Multiple mailboxes sharing a quota root must not cause its usage to be counted repeatedly or represented as separate storage allocations.
+- **Used space:** `STORAGE` usage, expressed in bytes.
+- **Storage limit:** `STORAGE` limit, expressed in bytes.
+
+The information must be retrieved **on demand**, starting with the quota information applicable to `INBOX`. The initial implementation does not require querying every folder or exposing other quota resources such as `MESSAGE`.
+
+Postela must **not present an `INBOX` quota as the account-wide total unless the information provided by the server establishes that scope**. It must not infer a global total by summing independent or overlapping quota roots. Unavailable values must be distinguished from valid zero values as specified in RFRM004.
 
 #### RFRM004 — Quota unavailable
 
