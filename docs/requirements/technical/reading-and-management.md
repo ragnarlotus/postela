@@ -219,6 +219,22 @@ These validations are not an isolation guarantee against concurrent changes by a
 4. If it still exists, verify its actual current state and permissions before a possible retry; its continued presence alone does not prove the previous attempt had no effects.
 5. If a reliable determination is impossible, return an identifiable **uncertain-result error** and stop all remaining destructive operations.
 
+**Special-folder mappings after confirmed deletions:**
+
+- When Postela confirms deletion of a mailbox assigned to one or more special-folder roles, explicitly set every affected role to `null` in the account-wide `account_preferences.special_folders` preference. This applies to affected descendants in recursive deletions as well.
+- An **explicit `null`** means that the role is unassigned and takes precedence over administrator-defined mappings and IMAP `SPECIAL-USE` discovery. An **absent property** means there is no user override, so the usual RTGS resolution rules apply. Do not treat these states as interchangeable.
+- Do not automatically choose, create, or assign a replacement special mailbox. Preserve all unaffected roles and preferences.
+- Only update mappings for mailboxes **confirmed deleted**. In a partial recursive deletion, do not clear mappings for mailboxes still present or whose removal could not be verified. Use the established account-wide partial-update and SQLite transaction semantics.
+- Notify all active sessions of the affected account about the confirmed folder changes and the resulting special-folder availability.
+
+**SQLite failure after a successful IMAP deletion:**
+
+1. Do **not** attempt to restore or repeat a mailbox deletion that has already succeeded on the IMAP server.
+2. Record the SQLite failure as an `ERROR` under RTCA036–RTCA037, and report **partial success**: the mailbox was deleted, but its special-folder preferences could not be updated.
+3. Preserve sufficient information about the confirmed deletions and affected roles to retry **only the SQLite preference update**, without executing IMAP `DELETE` again.
+4. Refresh the actual folder hierarchy and notify account sessions of the server changes, distinguishing the confirmed IMAP result from stale or uncommitted preference mappings.
+5. For recursive operations, update or retry mappings **only for mailboxes whose deletion has been confirmed**, regardless of whether other deletions failed or remain uncertain.
+
 Failures and incomplete results must be logged in accordance with RTCA036–RTCA037, without exposing credentials or message content. This requirement does not create an additional per-client IMAP monitoring connection.
 
 **Related requirements:** RFRM010–RFRM011, RFRM035–RFRM037; RTGS014–RTGS022, RTGS027; RTCA036–RTCA037; RTSN003–RTSN006.
