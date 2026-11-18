@@ -10,7 +10,7 @@
 
 This document specifies the technical implementation of mailbox reading and management through IMAP, following the functional requirements in `RFRM`.
 
-The requirements are introduced incrementally as their behavior is agreed. `RTRM001` covers folder hierarchy retrieval and status counters; `RTRM002` covers on-demand account storage usage and limit. Folder mutations, message listings, threading, searches, and other operations will be specified in subsequent requirements.
+The requirements are introduced incrementally as their behavior is agreed. `RTRM001` covers folder hierarchy retrieval and status counters; `RTRM002` covers on-demand account storage usage and limit; `RTRM003` covers creation of individual mailboxes and subfolders. Other folder mutations, message listings, threading, searches, and remaining operations will be specified in subsequent requirements.
 
 ## Technical requirements
 
@@ -84,8 +84,48 @@ Postela must expose only two storage-quota values to clients: **used space** (`u
 
 **Related requirements:** RFRM003–RFRM004, RFRM063; RTCA023–RTCA025; RTSN003–RTSN006.
 
+
+### Folder creation
+
+#### RTRM003 — Create an individual IMAP mailbox or subfolder
+
+Postela must expose an operation that creates **exactly one folder per request**. The client supplies the new folder's name and either:
+
+- **Root placement:** create the new folder at the applicable account mailbox root.
+- **Child placement:** identify an existing parent folder in which the new folder will be created.
+
+The backend must validate that a specified parent exists in the current IMAP folder inventory. It must construct the target **full IMAP mailbox name** from the server-reported hierarchy separator, namespace, and selected parent, without assuming that the separator is `/` or automatically creating additional intermediate folders.
+
+**Parent eligibility:**
+
+- An existing folder with `\Noselect` may be used as a parent when the server allows children beneath it: message selectability is separate from the ability to contain subfolders.
+- A folder marked `\Noinferiors` must **not** be offered or accepted as a parent.
+- Other server-side restrictions still apply; the backend must not assume that a parent is writable solely because it lacks `\Noinferiors`.
+
+**Name validation and creation:**
+
+1. Reject an empty new-folder name.
+2. Reject any new-folder name containing the hierarchy separator announced by the IMAP server, preventing one request from creating multiple hierarchy levels through an embedded separator.
+3. Do not impose arbitrary additional character restrictions; defer the server-specific definitive name validation to IMAP.
+4. If a mailbox with the requested full name already exists in the selected hierarchy level, return an explicit duplicate-name error. Do **not** silently rename it, append a numeric suffix, or otherwise modify the requested name.
+5. Issue **one IMAP `CREATE` command** for the validated full mailbox name. Postela must not proactively create missing intermediate parent mailboxes.
+6. A successfully created folder must not automatically be assigned a Postela special-folder role. The resulting inventory and any server-advertised `SPECIAL-USE` information remain subject to the existing `RTGS` special-folder resolution rules.
+
+**Connection loss and uncertain completion:**
+
+- A `CREATE` command modifies server state. If the connection is lost after sending it and Postela cannot determine whether the server completed it, **do not blindly repeat the command**.
+- First attempt a fresh, reliable `LIST` check for the specific requested full mailbox name, validating the actual returned name rather than treating an unrelated wildcard match as confirmation.
+- If the folder exists, report its current existence, **without claiming that the interrupted operation necessarily created it**.
+- If a reliable check confirms the folder does not exist, Postela may retry `CREATE`, subject again to the same validation and uncertainty-handling rules.
+- If the outcome cannot be verified, return an identifiable **uncertain-result error**, not an invented success or a definitive creation failure.
+- Report definitive IMAP `NO` or `BAD` responses as failures rather than retrying them as connection errors.
+
+Following a confirmed creation, refresh or propagate the affected folder inventory, counters, and relevant special-folder state to active sessions of that account using the existing shared synchronization architecture. Do not establish an additional persistent IMAP monitoring connection for this operation.
+
+**Related requirements:** RFRM001–RFRM002, RFRM006, RFRM011; RTGS011–RTGS021; RTSN003–RTSN006.
+
 ## Scope boundaries and follow-up documentation
 
 - **Quota information:** `RTRM002` implements only on-demand `STORAGE` usage and limit, beginning with `GETQUOTAROOT INBOX`. A complete per-mailbox quota-root inventory and other quota resources are outside the initial scope.
-- **Folder modifications and message operations:** not specified by `RTRM001`; their implementation will be added incrementally.
+- **Folder modifications and message operations:** `RTRM003` specifies individual folder creation. Folder rename, movement, deletion, and message operations will be added incrementally.
 - **Server authority:** actual mailbox inventory, status values, attributes, and access restrictions come from the IMAP server.
