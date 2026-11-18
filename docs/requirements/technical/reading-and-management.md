@@ -10,7 +10,7 @@
 
 This document specifies the technical implementation of mailbox reading and management through IMAP, following the functional requirements in `RFRM`.
 
-The requirements are introduced incrementally as their behavior is agreed. `RTRM001` covers folder hierarchy retrieval and status counters; `RTRM002` covers on-demand account storage usage and limit; `RTRM003` covers creation of individual mailboxes and subfolders; `RTRM004` covers folder renaming and movement; `RTRM005` covers folder deletion. Message listings, threading, searches, and remaining operations will be specified in subsequent requirements.
+The requirements are introduced incrementally as their behavior is agreed. `RTRM001` covers folder hierarchy retrieval and status counters; `RTRM002` covers on-demand account storage usage and limit; `RTRM003` covers creation of individual mailboxes and subfolders; `RTRM004` covers folder renaming and movement; `RTRM005` covers folder deletion. `RTRM006` covers filtered, sorted, paginated individual-message listings. Grouped-conversation listings, threading, searches, and remaining message operations will be specified in subsequent requirements.
 
 ## Technical requirements
 
@@ -294,5 +294,5 @@ The grouped-conversation listing (`thread_view = true`) has separate threading, 
 ## Scope boundaries and follow-up documentation
 
 - **Quota information:** `RTRM002` implements only on-demand `STORAGE` usage and limit, beginning with `GETQUOTAROOT INBOX`. A complete per-mailbox quota-root inventory and other quota resources are outside the initial scope.
-- **Folder modifications and message operations:** `RTRM003` covers folder creation, `RTRM004` covers renaming and movement, and `RTRM005` covers deletion. Message operations remain to be specified incrementally.
+- **Folder modifications and listings:** `RTRM003` covers folder creation, `RTRM004` covers renaming and movement, `RTRM005` covers deletion, and `RTRM006` covers individual-message listings. Conversation-grouped listings and remaining message operations will be specified incrementally.
 - **Server authority:** actual mailbox inventory, status values, attributes, and access restrictions come from the IMAP server.
