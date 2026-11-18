@@ -16,7 +16,7 @@ The administrator maintains backend configuration in TOML; users may customize s
 
 The SQLite schema, preference transactions, and persistence guarantees belong to `RTDS`. Client-specific key-value preferences belong to `RFDS` and `RTDS`, not to this group.
 
-**Message sorting, IMAP pagination, ordered UID caching, cache invalidation, and on-demand regeneration belong to Technical Reading and Management (`RTRM`)**. This document specifies only the associated administrator-configurable UID cache limit.
+**Message sorting, IMAP pagination, conversation discovery, cache invalidation, and on-demand regeneration belong to Technical Reading and Management (`RTRM`)**. This document specifies associated administrator-controlled cache capacities and preferences, not the IMAP operation algorithms.
 
 ## Technical requirements
 
@@ -28,8 +28,11 @@ The backend must define and validate these Postela-owned keys in `account_prefer
 
 | Key | Stored value |
 | --- | --- |
-| `page_size` | Integer message-list page size |
-| `sort` | Object specifying sorting criterion and direction |
+| `page_size` | Integer folder-list page size (messages or conversations, depending on mode) |
+| `sort` | Object specifying folder-list sorting criterion and direction |
+| `delete_to_trash` | Boolean controlling trash-first versus permanent deletion |
+| `thread_view` | Boolean enabling grouped conversation listings when supported |
+| `thread_multifolder` | Boolean controlling conversation counter and action scope |
 | `timezone` | IANA time-zone identifier |
 | `mark_as_read` | Boolean indicating whether opening a message marks it read |
 | `message_format` | `html` or `text` |
@@ -39,7 +42,7 @@ These keys are **account-wide**: their effective values must be available to eve
 
 The backend must not treat the arbitrary names used by `client_preferences` as Postela-owned account preference keys.
 
-**Related requirements:** RFGS001–RFGS012; RFDS019–RFDS022.
+**Related requirements:** RFGS001–RFGS015; RFDS019–RFDS022.
 
 #### RTGS002 — Administrator defaults and user overrides
 
@@ -65,7 +68,7 @@ No client may bypass the backend's account preference validation by supplying an
 
 **Related requirements:** RFDS005, RFDS023–RFDS024; RTDS016–RTDS018.
 
-### Message-list page size and sorting preference
+### Folder-list page size and sorting preference
 
 #### RTGS004 — Configurable page-size limits
 
@@ -73,13 +76,13 @@ The administrator must be able to configure these three values through layered T
 
 | Setting | Default |
 | --- | ---: |
-| Message-list page size | **50** messages |
-| Minimum allowed page size | **10** messages |
-| Maximum allowed page size | **200** messages |
+| Folder-list page size | **50** entries |
+| Minimum allowed page size | **10** entries |
+| Maximum allowed page size | **200** entries |
 
 At startup, the backend must verify that **minimum ≤ default ≤ maximum**, and that the values are valid positive integers. An inconsistent configuration must fail validation under `RTCA007`.
 
-A user's `page_size` override must be validated against the effective configured interval.
+A user's `page_size` override must be validated against the effective configured interval. A page contains **conversations** when grouping is active, and **individual messages** otherwise; the same preference and bounds apply to both.
 
 **Related requirements:** RFGS002; RTCA004–RTCA008.
 
@@ -114,6 +117,8 @@ The backend must expose a TOML-configurable limit for the number of UIDs retaine
 The Postela default must be **200,000 UIDs per session**. This setting limits cache capacity; it does not change the account's message-list page size.
 
 The implementation of the cache itself—including `CONTEXT=SORT` and `UID SORT`, whether to retain an over-limit result, cache lifetime, invalidation, and regeneration—belongs exclusively to `RTRM`.
+
+This capacity is **independent** of the separate conversation-structure cache limit defined in RTGS025.
 
 ### Time zones and message presentation
 
@@ -279,9 +284,109 @@ Notifications must reflect committed preference changes or the current server-ob
 
 **Related requirements:** RFDS005, RFDS023–RFDS024; RTDS018.
 
+### Deletion and conversation settings
+
+#### RTGS022 — Account-wide deletion preference
+
+The backend must recognize `account_preferences.delete_to_trash` as a boolean, with the Postela default **`true`**. Its effective value must follow RTGS002: explicit account override, administrator TOML default, then Postela default.
+
+- `true`: deletions from folders other than the configured `Trash` mailbox use the existing Trash destination.
+- `false`: deletions are permanent.
+- Deletion **from `Trash` itself must always be permanent**, regardless of the preference.
+
+When trash-first deletion is required but `Trash` cannot be resolved or used, the operation must fail rather than fall back to permanent deletion. The preference must not introduce a mail-retention policy or modify special-folder mappings.
+
+Validating actual IMAP message operations and their atomicity limitations belongs to `RTRM`, not this configuration document.
+
+**Related requirements:** RFGS013; RFRM035–RFRM039; RTGS011–RTGS015.
+
+#### RTGS023 — Account-wide conversation view preference
+
+The backend must recognize `account_preferences.thread_view` as a boolean, with the Postela default **`true`** and the effective priority defined in RTGS002.
+
+When enabled and the mail server supports **`THREAD=REFS`**, folder listings use conversation entries; when disabled, they use individual-message entries. If the required capability is unavailable, Postela must return individual messages **without changing the stored `thread_view` override** and inform the client that grouping is unavailable.
+
+This preference controls the list presentation and client's default choice between `read_thread` and `read_message`. It must not prohibit explicit single-message reads or turn advanced search results into grouped conversations.
+
+Conversation discovery and capability handling belong to `RTRM` and `RTCA`.
+
+**Related requirements:** RFGS014; RFRM012, RFRM018, RFRM050, RFRM053–RFRM054.
+
+#### RTGS024 — Account-wide multi-folder conversation scope preference
+
+The backend must recognize `account_preferences.thread_multifolder` as a boolean, with the Postela default **`false`** and the effective priority defined in RTGS002.
+
+- `false`: grouped conversation counters and explicit thread-wide actions consider related physical messages **in the selected folder only**.
+- `true`: they consider related physical messages **across all available account folders**.
+
+This preference must not affect:
+
+- Which conversations appear in a folder listing.
+- The scope of quick filters, which always match messages physically present in the selected folder.
+- The scope of `read_thread`, which always seeks the discoverable conversation across the account.
+- Folder unread/message counts, which remain specific to each folder.
+
+No separate `thread_actions_scope` preference must be introduced. When global counters cannot be determined reliably, returning `null` with error information rather than an apparently exact partial count is required by RFRM056; the error-handling strategy belongs to `RTRM`.
+
+**Related requirements:** RFGS015; RFRM038, RFRM055–RFRM060.
+
+#### RTGS025 — Configurable conversation-structure cache capacity
+
+The administrator must be able to configure a separate limit for the number of UIDs retained **per session** by the `THREAD=REFS` conversation-structure cache.
+
+The Postela default is **200,000 UIDs per session**. The limit must be a positive integer, validated as part of the effective backend configuration under RTCA007.
+
+This limit is **independent** of the 200,000-UID default for the message-sorting cache in RTGS007. It must not reduce `page_size` or prevent a requested page from being calculated when the limit is exceeded: the backend may process the current request but must not retain an over-limit conversation structure in the session cache.
+
+The `RTRM` document defines the IMAP construction, per-session/per-folder cache key, lifetime, invalidation on relevant folder changes or monitoring loss, reuse across WebSocket reconnections, concurrent regeneration, and cleanup.
+
+**Related requirements:** RFRM054, RFRM060; RTGS007; RTCA007.
+
+### Advanced search sorting defaults
+
+#### RTGS026 — Administrator-configurable search sort defaults
+
+Advanced searches must have **administrator-configurable sorting defaults independent of** `account_preferences.sort`. These defaults are backend TOML configuration rather than a user-owned account preference.
+
+The Postela defaults in `config.default.toml` must be:
+
+```toml
+[search]
+sort_by = "date"
+sort_direction = "desc"
+```
+
+`sort_by` must be validated against `date`, `folder`, `sender_name`, `sender_email`, and `subject`; `sort_direction` must accept `asc` or `desc`. Administrator overrides use the layered configuration rules of RTCA004–RTCA008.
+
+A client may choose a different field and direction for an individual search request without writing an account preference or changing the administrator's defaults. The backend must announce effective available options, apply the agreed fallbacks when the server lacks a requested sorting capability, and still return results when no sortable order is available.
+
+The server-specific sorting, multi-folder merge, and pagination algorithms belong to `RTRM`.
+
+**Related requirements:** RFGS016; RFRM050, RFRM061; RTCA004–RTCA008.
+
+### Administrator folder-deletion safeguards
+
+#### RTGS027 — Configurable folder-deletion policies
+
+The administrator must be able to configure three independent boolean controls, all **`false` by Postela default**:
+
+| Setting | Meaning |
+| --- | --- |
+| `allow_delete_nonempty_folders` | Permit deletion of a folder that still contains messages, subject to the agreed empty-before-delete behavior. |
+| `allow_recursive_folder_deletion` | Permit deletion of a folder together with its descendants. |
+| `allow_delete_special_folders` | Permit deletion of folders resolved as special folders. |
+
+Their effective values must follow the layered administrator TOML configuration and be validated as booleans. They are **administrator controls, not user-editable `account_preferences` keys**.
+
+`INBOX` itself must **never** be renamed, moved, or deleted, regardless of these settings. Its subfolders remain eligible for operations where independently permitted. These controls may restrict operations further than IMAP, but must **never override the server's actual permissions**.
+
+Folder deletion sequence, partial results, special-folder invalidation, and error behavior belong to `RTRM`.
+
+**Related requirements:** RFRM007–RFRM011; RTCA004–RTCA008.
+
 ## Boundaries and deferred decisions
 
 - **Administrator vs. user:** the administrator sets TOML defaults and safety limits; the user may save supported account-level overrides. These are different authorities and must remain distinct in naming, validation, and documentation.
 - **Data storage:** table definitions, WAL, transaction semantics, default precedence storage, and account isolation remain in [RTDS](./data-storage.md). The generic per-client configuration system is out of scope.
-- **Reading and management (`RTRM`):** IMAP message ordering and pagination, `CONTEXT=SORT` and `UID SORT`, the single ordered-UID cache per session, invalidation on folder and sorting changes, logout/session expiry cleanup, and **regeneration under demand** belong there. The cache is not specified operationally in `RTGS`.
-- **Future implementation details:** concrete TOML key paths, API operation names/payloads, error codes, the supported sort-criterion catalog, and exact notification schemas are not fixed here. They must preserve the approved behavior above.
+- **Reading and management (`RTRM`):** IMAP message ordering and pagination, `CONTEXT=SORT`, `UID SORT`, `THREAD=REFS`, per-session sorting/thread cache lifetimes and invalidation, conversation discovery, and **regeneration on demand** belong there. This document specifies the independent cache capacities, not the cache algorithms.
+- **Future implementation details:** TOML key paths other than the explicitly defined `[search]` section, API operation names/payloads, detailed error codes, and exact notification schemas are not fixed here. They must preserve the approved behavior and configuration-setting names above.
