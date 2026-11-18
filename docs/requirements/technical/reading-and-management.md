@@ -10,7 +10,7 @@
 
 This document specifies the technical implementation of mailbox reading and management through IMAP, following the functional requirements in `RFRM`.
 
-The requirements are introduced incrementally as their behavior is agreed. `RTRM001` covers folder hierarchy retrieval and status counters; `RTRM002` covers on-demand account storage usage and limit; `RTRM003` covers creation of individual mailboxes and subfolders; `RTRM004` covers folder renaming and movement. Folder deletion, message listings, threading, searches, and remaining operations will be specified in subsequent requirements.
+The requirements are introduced incrementally as their behavior is agreed. `RTRM001` covers folder hierarchy retrieval and status counters; `RTRM002` covers on-demand account storage usage and limit; `RTRM003` covers creation of individual mailboxes and subfolders; `RTRM004` covers folder renaming and movement; `RTRM005` covers folder deletion. Message listings, threading, searches, and remaining operations will be specified in subsequent requirements.
 
 ## Technical requirements
 
@@ -172,8 +172,59 @@ All operation failures must follow RTCA036–RTCA037's cross-cutting structured 
 
 **Related requirements:** RFRM007–RFRM011; RTGS013–RTGS021, RTGS027; RTCA036–RTCA037; RTSN003–RTSN006.
 
+### Folder deletion
+
+#### RTRM005 — Delete IMAP folders under administrator policies
+
+Postela must support deleting a single existing IMAP folder, optionally including its descendants, under the three administrator-controlled policies defined in RTGS027:
+
+- `allow_delete_nonempty_folders` (default `false`): whether to empty mailboxes containing messages before deleting them.
+- `allow_recursive_folder_deletion` (default `false`): whether to delete descendant mailboxes.
+- `allow_delete_special_folders` (default `false`): whether to delete folders resolved as special-use roles.
+
+**`INBOX` itself must never be deleted** regardless of these settings. Subfolders of INBOX may be deleted when independently permitted. IMAP `DELETE` does not delete descendant mailboxes; recursive deletion must process **deepest descendants first, parent last**, using separate IMAP operations.
+
+**Full preflight before any modification:**
+
+1. Obtain a sufficiently current server folder hierarchy, including descendants, and determine the scope of the requested operation. If descendants exist but `allow_recursive_folder_deletion = false`, reject the operation without deleting anything.
+2. Identify all affected special-folder roles. If `allow_delete_special_folders = false` and any affected mailbox is special, or if the operation targets `INBOX` itself, **reject the complete operation** and identify the blocking mailboxes before changing anything.
+3. Retrieve `MESSAGES` via `STATUS` for each affected selectable mailbox where the count is needed for validation or emptying. Non-selectable `\Noselect` hierarchy nodes do not require message-count recovery solely to determine whether they contain selectable messages.
+4. If `allow_delete_nonempty_folders = false` and any affected mailbox has messages, reject the whole operation and identify the nonempty mailboxes. If any required status is unavailable, **do not assume a `null` count means empty**.
+5. On temporary connection failures during required `STATUS` queries, apply **up to three retries**. Definitive IMAP `NO` or `BAD` responses are errors, not transient connection failures. If the count still cannot be reliably determined, reject the **entire operation before emptying or deleting any folder** and return the affected mailbox and error.
+6. Resolve the effective `delete_to_trash` setting and Trash mapping. If `delete_to_trash = true` and the currently configured Trash mailbox is **within the deletion subtree**, reject the entire operation as incompatible, even when `allow_delete_special_folders = true` and even when the requested folder is Trash itself. To permit deletion, the user must first choose an existing Trash mailbox **outside** the subtree. Postela must never remap Trash automatically.
+7. Where moving messages to Trash will be required, validate that the resolved Trash destination is available before beginning. If not, reject rather than silently switching to permanent deletion.
+
+These validations are not an isolation guarantee against concurrent changes by another IMAP client. The backend must respect actual IMAP permissions and the current results of each operation.
+
+**Emptying before folder deletion:**
+
+- If `allow_delete_nonempty_folders = true`, empty each affected mailbox containing messages before executing IMAP `DELETE` for that mailbox, following `delete_to_trash`.
+- With `delete_to_trash = true`, move messages into the configured Trash mailbox. With `delete_to_trash = false`, permanently delete messages.
+- Messages deleted **from Trash itself** follow the pre-existing permanent-delete rule when deleting that folder is permitted under the effective settings; this does not bypass the incompatibility check above.
+- A failure during emptying must **stop the entire remaining operation**, leaving the affected folder undeleted, and report any message changes already completed and the error. Do not automatically reverse completed moves or deletions.
+- Do not empty descendants when performing a nonrecursive folder deletion.
+
+**Execution and partial results:**
+
+- After preflight, process folders deepest-first. A completed deletion of one child is not rolled back when a later child fails.
+- At the **first failure** to empty or delete a folder, stop immediately; do not process remaining siblings or ancestors.
+- Report separately the mailboxes confirmed deleted, any confirmed message changes before failure, the step where the operation stopped, and the error. Never claim that a partially successful recursive deletion was atomic or complete.
+- Refresh the actual server folder inventory and special-folder availability, and notify affected sessions of the same account through the existing IMAP monitoring architecture.
+
+**Unknown outcome after connection loss during IMAP `DELETE`:**
+
+1. Do **not** automatically repeat a `DELETE` command when its outcome is uncertain.
+2. Obtain a reliable fresh `LIST` inventory for the affected mailbox and hierarchy.
+3. If the mailbox no longer exists, record the deletion as confirmed; do not attempt to delete it again.
+4. If it still exists, verify its actual current state and permissions before a possible retry; its continued presence alone does not prove the previous attempt had no effects.
+5. If a reliable determination is impossible, return an identifiable **uncertain-result error** and stop all remaining destructive operations.
+
+Failures and incomplete results must be logged in accordance with RTCA036–RTCA037, without exposing credentials or message content. This requirement does not create an additional per-client IMAP monitoring connection.
+
+**Related requirements:** RFRM010–RFRM011, RFRM035–RFRM037; RTGS014–RTGS022, RTGS027; RTCA036–RTCA037; RTSN003–RTSN006.
+
 ## Scope boundaries and follow-up documentation
 
 - **Quota information:** `RTRM002` implements only on-demand `STORAGE` usage and limit, beginning with `GETQUOTAROOT INBOX`. A complete per-mailbox quota-root inventory and other quota resources are outside the initial scope.
-- **Folder modifications and message operations:** `RTRM003` specifies folder creation and `RTRM004` specifies renaming and movement. Folder deletion and message operations will be added incrementally.
+- **Folder modifications and message operations:** `RTRM003` covers folder creation, `RTRM004` covers renaming and movement, and `RTRM005` covers deletion. Message operations remain to be specified incrementally.
 - **Server authority:** actual mailbox inventory, status values, attributes, and access restrictions come from the IMAP server.
