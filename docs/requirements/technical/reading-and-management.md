@@ -239,6 +239,58 @@ Failures and incomplete results must be logged in accordance with RTCA036–RTCA
 
 **Related requirements:** RFRM010–RFRM011, RFRM035–RFRM037; RTGS014–RTGS022, RTGS027; RTCA036–RTCA037; RTSN003–RTSN006.
 
+### Individual-message listing, filtering, and pagination
+
+#### RTRM006 — Server-side filtering, sorting, and paginated individual-message listings
+
+When the effective `thread_view` preference is `false`, or conversation grouping is unavailable, Postela must retrieve **individual-message** folder listings using the server's IMAP search and sorting facilities wherever supported. **Filtering precedes sorting, and sorting precedes pagination.** The backend must not download all messages or all their metadata merely to construct a page.
+
+**Folder selection and effective options:**
+
+1. Select or examine the requested selectable mailbox using a non-persistent, on-demand IMAP connection. Obtain its current `UIDVALIDITY` and validate it against any cached UID results for that folder.
+2. Determine the effective `page_size` and `sort` from `RTGS`, subject to valid temporary request overrides. Changing the listing's sorting or quick filters must not modify `account_preferences`.
+3. Consult the account's existing IMAP capability cache under `RTCA`; do not issue a fresh `CAPABILITY` before every page request solely for this purpose.
+4. Expose the effective available sorting criteria, direction, and any fallback to the client through the agreed capability and response contract, without exposing raw IMAP extension names as product-level features.
+
+**Folder-local quick filters:**
+
+- No quick filter: use the equivalent of IMAP `ALL`.
+- Unread: use IMAP `UNSEEN`.
+- Flagged: use IMAP `FLAGGED`.
+- Unread **and** flagged: combine the IMAP search keys with **AND** semantics (`UNSEEN FLAGGED`).
+- Apply these criteria **only to the selected mailbox**, never to its descendants or to related messages in other folders, irrespective of `thread_multifolder`.
+- Supply the search criteria directly to `SORT` when sorting is available; otherwise use `UID SEARCH`. Do not fetch complete messages or evaluate these filters against downloaded message bodies.
+
+**Server-side sorting and pagination strategy:**
+
+1. **`CONTEXT=SORT` available:** prefer extended `UID SORT` with `RETURN (PARTIAL start:end)`, passing the sorting criteria and IMAP search keys in the same operation. Retrieve only the UID interval for the requested page from the server; no Postela ordered-UID result cache is required for this strategy.
+2. **`SORT` available without `CONTEXT=SORT`:** use `UID SORT` with the applicable search keys so the server performs both filtering and sorting. This returns the complete ordered UID result; Postela extracts the requested page's UID range. Reuse the session's ordered-UID cache as defined below.
+3. **No usable `SORT`:** apply quick filters with `UID SEARCH`, paginate the server-provided results, and **do not sort locally**. Inform the client that the requested sorting is unavailable. In particular, do not retrieve an entire folder's metadata to emulate sorting.
+4. `ESORT` by itself does **not** establish support for `PARTIAL` on sorted results; choose the partial sorted-result strategy only when the required capability is actually available.
+5. Apply the previously agreed sorting fallbacks: if `sender_name` is unavailable, prefer `sender_email` with the same direction; for other unavailable criteria, prefer date descending and then another server-supported criterion if applicable. If no usable sorting criterion exists, use the unsorted server-provided results. Preserve the saved preference during any temporary fallback.
+6. A page must always be determined from the **entire matching result in the effective order**, not by sorting only the messages fetched for that page. If the selected criteria return no UIDs, return an empty page rather than making an invalid `FETCH` request.
+
+**Ordered-UID cache (only for the `UID SORT` fallback):**
+
+- Maintain **at most one ordered-UID cache per authenticated session**, independent of other sessions of the same account. Store UIDs as `[]uint32`, not message bodies, metadata, or a persistent message index.
+- The cache represents a specific mailbox, its `UIDVALIDITY`, effective sorting criterion and direction, and active quick-filter combination. Replace it when the session requests a different mailbox, sorting, or filtering; do not reuse UID results for a different query.
+- Use the administrator-configurable capacity defined in `RTGS007`, with a Postela default of **200,000 UIDs per session**. If a `UID SORT` result exceeds that limit, resolve the current page from the full returned UID list and then discard it **without retaining a truncated cache**. Later pages must remain accessible and may require repeating `UID SORT`.
+- Invalidate the affected session caches on relevant IMAP notifications, including message arrival, expunge or movement, changes that can affect filtering or ordering, and a changed `UIDVALIDITY`. Do not invalidate unrelated account sessions' caches unless their cached results are also affected.
+- **Regenerate only on demand:** invalidation does not immediately launch another `UID SORT`. Rebuild the applicable cache the next time that session requests a listing.
+- Keep the cache across transient WebSocket reconnections while the backend session remains valid. Release it immediately on logout or any session invalidation, including reconnection-period expiration and backend restart. Follow the existing session lifecycle; no additional persistent IMAP connection is introduced.
+
+**Metadata retrieval and response identity:**
+
+1. Once the page's UIDs are known, retrieve their listing metadata using **one `UID FETCH` for that page**, requesting `UID`, `FLAGS`, `ENVELOPE`, `INTERNALDATE`, `RFC822.SIZE`, and `BODYSTRUCTURE`, as applicable.
+2. Use the MIME structure to identify downloadable attachments without downloading attachment contents or message bodies. This listing operation must not itself mark messages as read.
+3. Preserve the effective page order when assembling the response; do not assume that the order of individual `FETCH` responses necessarily matches the sorted UID sequence.
+4. Include the full folder name and its **current `UIDVALIDITY` once at response level**, plus the message UID in each entry, rather than duplicating the folder identity in every entry. Provide the information needed to navigate pages and distinguish effective sorting/filtering from requested preferences.
+5. If `UIDVALIDITY` changes while resolving a page, do not present cached results from the previous UID generation as valid. Follow the existing safe-identity and failure/recovery rules.
+
+The grouped-conversation listing (`thread_view = true`) has separate threading, grouping, representative-message, aggregate-counter, sorting, and pagination requirements. It must not be implemented by simply relabeling this individual-message list.
+
+**Related requirements:** RFRM012–RFRM016, RFRM053–RFRM060, RFRM062, RFRM064; RTGS003–RTGS007; RTCA session/capability-cache rules; RTSN003–RTSN006.
+
 ## Scope boundaries and follow-up documentation
 
 - **Quota information:** `RTRM002` implements only on-demand `STORAGE` usage and limit, beginning with `GETQUOTAROOT INBOX`. A complete per-mailbox quota-root inventory and other quota resources are outside the initial scope.
