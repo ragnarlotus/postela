@@ -347,5 +347,5 @@ When the effective `thread_view` preference is `true`, Postela must return **one
 ## Scope boundaries and follow-up documentation
 
 - **Quota information:** `RTRM002` implements only on-demand `STORAGE` usage and limit, beginning with `GETQUOTAROOT INBOX`. A complete per-mailbox quota-root inventory and other quota resources are outside the initial scope.
-- **Folder modifications and listings:** `RTRM003` covers folder creation, `RTRM004` covers renaming and movement, `RTRM005` covers deletion, and `RTRM006` covers individual-message listings, and `RTRM007` covers grouped conversation listings. Remaining message operations will be specified incrementally.
+- **Folder modifications and listings:** `RTRM003` covers folder creation, `RTRM004` covers renaming and movement, `RTRM005` covers deletion, `RTRM006` covers individual-message listings, and `RTRM007` covers grouped conversation listings. Remaining message operations will be specified incrementally.
 - **Server authority:** actual mailbox inventory, status values, attributes, and access restrictions come from the IMAP server.
