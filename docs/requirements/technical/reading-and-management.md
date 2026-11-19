@@ -10,7 +10,7 @@
 
 This document specifies the technical implementation of mailbox reading and management through IMAP, following the functional requirements in `RFRM`.
 
-The requirements are introduced incrementally as their behavior is agreed. `RTRM001` covers folder hierarchy retrieval and status counters; `RTRM002` covers on-demand account storage usage and limit; `RTRM003` covers creation of individual mailboxes and subfolders; `RTRM004` covers folder renaming and movement; `RTRM005` covers folder deletion. `RTRM006` covers filtered, sorted, paginated individual-message listings; `RTRM007` covers grouped conversation listings, including quick filters, counters, sorting, pagination, and cache management. Conversation reading, searches, and remaining message operations will be specified in subsequent requirements.
+The requirements are introduced incrementally as their behavior is agreed. `RTRM001` covers folder hierarchy retrieval and status counters; `RTRM002` covers on-demand account storage usage and limit; `RTRM003` covers creation of individual mailboxes and subfolders; `RTRM004` covers folder renaming and movement; `RTRM005` covers folder deletion. `RTRM006` covers filtered, sorted, paginated individual-message listings. Grouped-conversation listings, threading, searches, and remaining message operations will be specified in subsequent requirements.
 
 ## Technical requirements
 
@@ -291,61 +291,8 @@ The grouped-conversation listing (`thread_view = true`) has separate threading, 
 
 **Related requirements:** RFRM012–RFRM016, RFRM053–RFRM060, RFRM062, RFRM064; RTGS003–RTGS007; RTCA session/capability-cache rules; RTSN003–RTSN006.
 
-### Grouped conversation folder listings
-
-#### RTRM007 — Thread-aware folder listing, quick filters, counters, and pagination
-
-When the effective `thread_view` preference is `true`, Postela must return **one entry per conversation present in the requested folder**, provided the IMAP server advertises `THREAD=REFS`. The selected folder determines which conversations appear; the account-wide `thread_multifolder` preference changes only the scope of conversation counters and thread actions, not folder membership or quick-filter matching.
-
-**Capability handling and grouping:**
-
-1. Use **`UID THREAD REFS`** against the selected mailbox to obtain server-generated relationships between its physical messages, without loading complete message bodies or maintaining a persistent message/conversation index.
-2. Do **not** substitute `THREAD=REFERENCES` or `THREAD=ORDEREDSUBJECT`: those algorithms may group messages by subject without the explicit references required by Postela's conversation identity rules.
-3. If `THREAD=REFS` is unavailable, preserve the saved `thread_view` preference but return an individual-message listing according to `RTRM006`. Announce the feature limitation through the existing `session_capabilities` contract.
-4. A conversation appears **once in a folder's listing if and only if at least one physical member is currently in that folder**. It may appear independently in other folder listings. Distinct physical copies must remain distinguishable by folder, `UIDVALIDITY`, and UID.
-
-**Quick filters and message representative:**
-
-- Obtain the **full conversation structure of the selected folder** before filtering so a quick filter never splits a conversation or reconstructs its membership from only matching messages.
-- Retrieve matching UIDs using IMAP `UID SEARCH UNSEEN`, `UID SEARCH FLAGGED`, or both criteria combined with **AND** semantics; with no filter all folder conversations are eligible. These searches are **folder-local**, including when `thread_multifolder = true`.
-- Include a conversation if any member **in the selected folder** matches all active quick-filter criteria.
-- With no quick filter, its representative is the **most recent message in that folder**. With filters active, its representative is the **most recent matching message in that folder**. Never substitute a newer related message located in another folder.
-- Use IMAP-supported ordering of message UIDs, including `UID SORT` when needed and available, to identify representatives without fetching full message metadata for the whole folder. Do not assume that UID numerical order alone proves message-date order.
-- The response includes only the representative's **folder/`UIDVALIDITY`/UID** and the required aggregate counters, **not every member UID**. Full conversation discovery and `read_thread` are separate operations.
-
-**Sorting, pagination, and message metadata:**
-
-1. Filter eligible conversations first, determine the applicable representative for each, and then **sort conversations and paginate the resulting conversation entries**, not the individual messages.
-2. `page_size` means **conversations per page** in this mode. Sorting and pagination must use the representative belonging to the selected folder (or the newest matching representative with filters).
-3. Prefer IMAP server-side sorting of messages using supported `UID SORT` criteria, and project its UID ordering onto the selected **representative UIDs** to obtain the corresponding conversation order; do not fetch metadata for every message merely to sort grouped entries. A `UID SORT` result includes matching message UIDs, so selecting only the representative UIDs must be done **before slicing the final conversation page**, not by paginating messages first.
-4. Apply the previously approved effective sort criteria, directions, and fallback rules from `RTRM006` and `RTGS006`. If no usable server sorting exists, do not invent a client-side sorted result or fetch the whole folder's metadata just to sort it. Any claimed ordering and representative selection must be supported by actual IMAP response data.
-5. Retrieve detailed listing metadata **only for the representatives in the requested page**, without downloading full bodies or attachments. Preserve the effective conversation ordering when assembling the response.
-6. Supply `UIDVALIDITY` and folder identity at response level for a single-folder listing and return each representative UID along with `thread.count`, `thread.unread`, and `thread.flagged`. Do not treat a grouped list entry as a complete set of physical message identifiers.
-
-**Aggregated conversation counters:**
-
-- With `thread_multifolder = false`, `thread.count` is the number of physical member messages in the selected folder's `THREAD=REFS` structure. Derive `thread.unread` and `thread.flagged` by intersecting its member UIDs with folder-local `UID SEARCH UNSEEN` and `UID SEARCH FLAGGED` results. Do not issue a per-message `FETCH` merely to count flags.
-- With `thread_multifolder = true`, counts must include discoverable related **physical messages in all available folders**. Keep each message's folder and `UIDVALIDITY` distinct; do not deduplicate physically different copies just because they share a `Message-ID`.
-- For cross-folder counters, find related messages in other folders **only for conversations on the requested page**, after folder-local filtering, sorting, and pagination. Do not search the rest of the account to determine which conversations appear in the selected folder.
-- A failed query against another folder must **not** prevent successful folder-local quick filtering or listing. Retry temporary connection failures under the existing policy; if a counter cannot be established correctly, return **`null` for that affected counter plus error details**, rather than a partial number disguised as exact. Other reliable counters may remain populated.
-- Grouped-list flags are informational: unread and flagged state are derived from `thread.unread > 0` and `thread.flagged > 0` only when those counts are known; they do not create a generic toggle of an entire conversation's `\\Flagged` state.
-
-**Per-session conversation-structure cache:**
-
-1. Cache the `UID THREAD REFS` **structure of at most the current folder per authenticated session**, keyed to its full IMAP folder name and `UIDVALIDITY`. Reuse that structure when requesting additional pages or different quick filters; the cached relationships must include all members, not only filtered ones.
-2. The administrator configures an **independent conversation-structure cache capacity** under `RTGS025`, defaulting to **200,000 member UIDs per session** (count actual UIDs, not number of conversations). When a result exceeds this limit, compute the requested page and discard the full structure afterwards; **never deny the page merely because it exceeds the cache capacity**.
-3. Invalidate a folder's cached structure when membership changes through arrival, expunge, or movement, or when its `UIDVALIDITY` changes. **Flag-only changes do not invalidate the relationships**; update or invalidate the affected counters separately.
-4. With `thread_multifolder = true`, relevant changes in another folder invalidate affected **cross-folder counters**, not an otherwise unchanged selected-folder `THREAD=REFS` structure. Coalesce consecutive changes and recalculate counters as needed, without proactively rebuilding unrelated structures.
-5. **Regenerate only on demand.** Allow only one concurrent reconstruction for the same session and folder; overlapping page requests share the in-progress result. Discard a result rendered obsolete by a relevant change during reconstruction, and do not block independent IMAP operations.
-6. Preserve the cache across temporary WebSocket disconnections while the session remains valid. Invalidate it when account-wide IMAP monitoring is interrupted and changes may have been missed. Free it when switching to another folder, logging out, invalidating or expiring the session, or restarting the backend.
-7. Do not introduce a persistent local search/thread index or a new monitoring connection per client. Continue to use the shared account-wide IMAP monitoring and existing on-demand IMAP operations.
-
-**Implementation verification still required:** `THREAD=REFS`'s specific ordering and the available `UID SORT` behavior must be validated in the actual Go library and against the configured IMAP server before claiming that every configured grouped-list sort/representative case is implemented. No unverified local metadata-heavy fallback is permitted.
-
-**Related requirements:** RFRM012–RFRM016, RFRM053–RFRM060, RFRM062–RFRM064; RTRM006; RTGS006–RTGS007, RTGS023–RTGS025; RTSN003–RTSN006.
-
 ## Scope boundaries and follow-up documentation
 
 - **Quota information:** `RTRM002` implements only on-demand `STORAGE` usage and limit, beginning with `GETQUOTAROOT INBOX`. A complete per-mailbox quota-root inventory and other quota resources are outside the initial scope.
-- **Folder modifications and listings:** `RTRM003` covers folder creation, `RTRM004` covers renaming and movement, `RTRM005` covers deletion, `RTRM006` covers individual-message listings, and `RTRM007` covers grouped conversation listings. Remaining message operations will be specified incrementally.
+- **Folder modifications and listings:** `RTRM003` covers folder creation, `RTRM004` covers renaming and movement, `RTRM005` covers deletion, and `RTRM006` covers individual-message listings. Conversation-grouped listings and remaining message operations will be specified incrementally.
 - **Server authority:** actual mailbox inventory, status values, attributes, and access restrictions come from the IMAP server.
