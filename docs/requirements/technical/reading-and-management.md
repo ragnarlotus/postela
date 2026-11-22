@@ -334,7 +334,16 @@ When the effective account preference is `thread_view = true`, Postela must use 
 5. Fetch only the listing metadata needed for the representative messages of the requested conversation page, without fetching full bodies or attachments. Preserve the computed conversation order in the response.
 6. **Do not use `CONTEXT=SORT` `PARTIAL` directly to page conversations:** its range refers to message positions, which do not correspond to conversation positions. Even when partial results are supported, the grouping and deduplication of representative UIDs must precede pagination.
 
-**Still pending:** conversation-counter computation and detailed cache lifecycle.
+**Folder-local conversation counters (`thread_multifolder = false`):**
+
+1. Use the complete conversation membership returned by `UID THREAD REFS` for the selected mailbox (or the valid cached structure) to determine the physical UID members of each conversation.
+2. For read and flagged state, request `UID SEARCH UNSEEN` and `UID SEARCH FLAGGED` in **that same mailbox**. Reuse compatible search results already retrieved for folder-local quick filters, rather than repeating queries unnecessarily.
+3. Compute `thread.count` as the number of member UIDs in the conversation's folder-local structure; compute `thread.unread` and `thread.flagged` by intersecting those member UIDs with the respective `UNSEEN` and `FLAGGED` search results.
+4. Calculate and include these counters **only for conversations on the requested conversation page**, even when an IMAP search returns matching UIDs from the whole selected mailbox.
+5. These counters cover **all member messages physically in the selected folder**, regardless of which messages matched the active quick filters. Do not include related messages from other folders when `thread_multifolder = false`.
+6. Do not use per-message `FETCH` solely to count unread or flagged messages; rely on the IMAP search results and the conversation structure.
+
+**Still pending:** cross-folder conversation counters (`thread_multifolder = true`) and detailed cache lifecycle.
 
 
 
