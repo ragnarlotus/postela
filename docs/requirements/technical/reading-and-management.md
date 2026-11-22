@@ -417,7 +417,16 @@ The `read_message` operation must retrieve **only the message explicitly request
 5. The frontend controls whether externally hosted resources are loaded, following the existing default-blocking and trusted-sender policy. **Sanitization must not itself authorize remote resource loading**, and trusting a sender must not authorize active content.
 6. Preserve access to the unmodified original message for the separate `.eml` download capability; sanitization applies only to the display representation.
 
-**Still pending within RTRM008:** remote-resource and embedded-CID delivery details, complete original headers, and attachment retrieval.
+**Inline CID images in the message response:**
+
+1. Identify `cid:` image references in the sanitized HTML and resolve each referenced `Content-ID` against the message's existing `BODYSTRUCTURE` MIME hierarchy.
+2. Retrieve **only the referenced inline image MIME sections** from IMAP, using `UID FETCH BODY.PEEK[section]`, alongside the message content within the same `read_message` operation. Do not proactively download unrelated downloadable attachments or unreferenced inline parts.
+3. Decode each required MIME part, validate that its actual content type is an allowed passive image format, and exclude potentially active or unsafe formats such as SVG from direct embedding.
+4. Encode each accepted image as Base64 and **replace its corresponding `cid:` reference in the sanitized HTML with a `data:image/...;base64,...` URL**. Return the resulting HTML in the single `read_message` response; the frontend need not create `Blob` URLs or make additional backend requests for these inline images.
+5. The client-side content-security policy for displaying mail must permit the necessary **image-only `data:` URLs** without permitting active embedded content or automatically authorizing externally hosted resources.
+6. Do not persist these extracted images or modify the original message stored on IMAP. The separate `.eml` download continues to preserve the original content.
+
+**Still pending within RTRM008:** exact trusted-sender/remote-content handling, complete original headers, and attachment retrieval.
 
 **Related requirements:** RFRM017, RFRM018, RFRM024, RFRM026–RFRM027, RFRM062; RFGS010–RFGS012; RTCA session and connection rules.
 
