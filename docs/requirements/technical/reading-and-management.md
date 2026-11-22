@@ -628,7 +628,15 @@ This completes the initially approved technical behavior for `RTRM009`; any addi
 5. The fallback is **not atomic**. Report the operations' known outcome and any partial failures, including a copy that completed but whose source cleanup failed. **Do not automatically repeat an already completed copy or destructive step**, avoiding unintended duplicates or additional changes.
 6. Synchronize actual server state for the source and destination and invalidate affected conversation-membership caches when folder membership changes, as with `UID MOVE`.
 
-**Still pending within RTRM011:** any further move-operation decisions, including archive/unarchive reuse and detailed result handling.
+**Archive and unarchive through the generic message-move operation:**
+
+1. **Do not introduce separate backend archive or unarchive operations.** A client may expose dedicated UI actions, but both must invoke the same `move_messages` operation used for moving messages between existing folders.
+2. For **archive**, resolve the effective `archive` special-folder mapping according to `RTGS`: user override first, administrator domain mapping second, and IMAP `SPECIAL-USE` discovery third. Use the resolved full IMAP mailbox name as the move destination, rather than assuming a literal folder name.
+3. For **unarchive**, use the same move operation to move the selected messages from the archive mailbox to `INBOX` or another existing destination chosen by the user.
+4. Apply the already-approved `RTRM011` identity validation, destination validation, `UID MOVE` primary mechanism, and `UIDPLUS` fallback equally to archive and unarchive operations.
+5. If the archive role cannot be resolved to an **available, eligible mailbox**, reject the archive request with an identifiable error; **do not** create a mailbox, silently select a different destination, or assume a folder named `Archive` exists.
+
+**Still pending within RTRM011:** detailed move-result and uncertain-outcome handling, and any further move-operation decisions.
 
 **Related requirements:** RFRM033–RFRM034, RFRM039, RFRM062; RTRM007; RTSN.
 
