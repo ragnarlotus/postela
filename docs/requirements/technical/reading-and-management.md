@@ -573,7 +573,17 @@ This completes the initially approved technical behavior for `RTRM009`; any addi
 5. Batch IMAP operations by mailbox and use UID sets (splitting into batches if required). Do not download message bodies or attachments, and do not change flags other than `\Seen`.
 6. Propagate successful changes to individual message states, mailbox unread counters, and affected conversation `thread.unread` counters across authorized account sessions. Report partial failures accurately without indicating that an unsuccessful mailbox or message update completed.
 
-**Still pending within RTRM010:** conversation-wide read/unread operations initiated from grouped folder listings (respecting `thread_multifolder`) and any additional flag synchronization details.
+**Explicit conversation read/unread actions from a grouped folder listing when `thread_multifolder = false`:**
+
+1. Accept the folder, `UIDVALIDITY`, and UID of the conversation's representative message supplied by the grouped folder listing.
+2. Validate that representative's mailbox identity and determine its related physical messages **only within the selected folder**, reusing the cached `THREAD=REFS` structure when valid. Do not include messages from other folders.
+3. **Mark as read:** identify which of the conversation's UIDs are still unread (using `UID SEARCH UNSEEN` in the selected mailbox) and issue `UID STORE +FLAGS.SILENT (\Seen)` only for those UIDs.
+4. **Mark as unread:** issue `UID STORE -FLAGS.SILENT (\Seen)` for all conversation UIDs found in the selected mailbox.
+5. Use UID sets and batched commands when appropriate. Do not retrieve message bodies or attachments, and preserve every flag other than `\Seen`.
+6. Synchronize affected individual flags, mailbox unread counts, and `thread.unread` counters. Respect IMAP permissions, report failed or partial operations accurately, and keep cached conversation membership unchanged.
+7. This **grouped-list action** uses the effective `thread_multifolder` scope; it is distinct from the already approved read/unread operation on an **open conversation**, which always covers all its discovered related messages.
+
+**Still pending within RTRM010:** conversation-wide read/unread actions from grouped folder listings with `thread_multifolder = true`, and any additional flag synchronization details.
 
 **Related requirements:** RFRM028–RFRM032, RFRM058, RFRM062; RTRM008–RTRM009; RTSN.
 
