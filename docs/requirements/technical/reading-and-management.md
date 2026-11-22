@@ -383,9 +383,16 @@ The `read_message` operation must retrieve **only the message explicitly request
 6. If the specified UID no longer exists in the mailbox, return a specific message-unavailable error.
 7. Do **not** discover related messages or perform conversation-thread searches as part of `read_message`. Conversation reading belongs to the separate `read_thread` operation.
 
-The precise retrieval of headers, MIME contents, attachment metadata, and application of `mark_as_read` will be specified through subsequent approved decisions within `RTRM008`.
+**Initial metadata and MIME-structure retrieval:**
 
-**Related requirements:** RFRM017, RFRM018, RFRM062; RTCA session and connection rules.
+1. After validating the mailbox's `UIDVALIDITY`, use a `UID FETCH` request targeted to the selected message to obtain `ENVELOPE`, `FLAGS`, `INTERNALDATE`, and `BODYSTRUCTURE`.
+2. Use `ENVELOPE` for the available sender, recipient, subject, and message-date information; `FLAGS` for the current IMAP flags; and `INTERNALDATE` for the date recorded by the IMAP server.
+3. Use `BODYSTRUCTURE` to determine the message's MIME hierarchy, available content types, attachment filenames and sizes where provided, and embedded-part `Content-ID` values. Expose metadata only when the underlying message provides it; do not invent missing names or sizes.
+4. Do not download the contents of every attachment in order to construct the attachment listing. The exact body-section retrieval and individual-attachment download rules will be specified separately.
+
+**Still pending within RTRM008:** retrieval and decoding of HTML/plain-text message bodies, complete original headers, attachment content, embedded-resource delivery, and the `mark_as_read` behavior.
+
+**Related requirements:** RFRM017, RFRM018, RFRM024, RFRM062; RTCA session and connection rules.
 
 ## Scope boundaries and follow-up documentation
 
