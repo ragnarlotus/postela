@@ -446,9 +446,18 @@ The `read_message` operation must retrieve **only the message explicitly request
 7. When automatic authorization cannot be established, allow the user to explicitly authorize remote content **for the currently displayed message only**, without adding or changing any trusted-sender entry.
 8. Whether loading is automatic or manually authorized, only restore remote URLs otherwise permitted by the approved sanitization and resource-blocking rules. Never allow scripts, active content, or unsafe URL schemes.
 
-**Still pending within RTRM008:** complete original headers and attachment retrieval.
+**Complete original headers (`read_headers`):**
 
-**Related requirements:** RFRM017, RFRM018, RFRM024, RFRM026–RFRM027, RFRM062; RFGS010–RFGS012; RTCA session and connection rules.
+1. Provide a distinct `read_headers` operation accepting the message's **folder, `UIDVALIDITY`, and UID**.
+2. Select the specified folder and validate its current `UIDVALIDITY` before reading; apply the same safe message-identity and missing-UID error handling as `read_message`.
+3. Retrieve only the original header section using a UID-targeted `UID FETCH BODY.PEEK[HEADER]` operation.
+4. Return the **complete original header text as received**, preserving header order, folding, and content without filtering, reconstructing, sanitizing, or rewriting it. Include any present `Received`, `Authentication-Results`, `DKIM-Signature`, and other headers.
+5. Do not download the message body or attachments. `read_headers` must never alter `\\Seen`, regardless of the account's `mark_as_read` preference.
+6. The client may display or copy the returned headers **as text**, never interpreting them as active HTML.
+
+**Still pending within RTRM008:** raw original-message downloads and individual attachment retrieval.
+
+**Related requirements:** RFRM017, RFRM018, RFRM023–RFRM027, RFRM062; RFGS010–RFGS012; RTCA session and connection rules.
 
 ## Scope boundaries and follow-up documentation
 
