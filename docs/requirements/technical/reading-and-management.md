@@ -663,7 +663,15 @@ This completes the initially approved technical behavior for `RTRM009`; any addi
 5. If the Trash mailbox cannot be resolved or is unavailable or ineligible, **fail the operation without permanently deleting any selected messages**. Do not create a replacement folder or silently choose another destination.
 6. Synchronize the affected folder listings and counters through the approved IMAP notification mechanism, and invalidate affected conversation-membership caches after confirmed membership changes.
 
-**Still pending within RTRM012:** permanent deletion when `delete_to_trash = false` or when messages are already in Trash, empty-folder deletion, conversation deletion, and any further deletion decisions.
+**Permanently delete selected messages:**
+
+1. Use `delete_messages` with the source folder, its `UIDVALIDITY`, and the list of selected UIDs. Validate message identities and IMAP permissions before acting.
+2. Perform **permanent deletion** when the effective `delete_to_trash` preference is `false`, or when the selected messages are **already in the resolved Trash mailbox** regardless of the preference.
+3. Require the IMAP server to support **`UIDPLUS`** for permanent deletion of selected messages. If `UIDPLUS` is unavailable, reject the operation as unsupported instead of using an unrestricted `EXPUNGE` that could also delete other messages already carrying `\Deleted`.
+4. Use `UID STORE +FLAGS.SILENT (\Deleted)` to mark **only the selected UIDs** for deletion, followed by `UID EXPUNGE` with **the same UID set** to permanently expunge only the selected messages.
+5. Synchronize the affected folder's message listing, counters, and conversation-membership cache after confirmed deletions. Report partial or uncertain outcomes accurately; do not automatically replay uncertain destructive commands.
+
+**Still pending within RTRM012:** empty-folder deletion, conversation deletion, and any further deletion decisions.
 
 **Related requirements:** RFRM035–RFRM039, RFRM062; RTGS011–RTGS015, RTGS022; RTRM007, RTRM011; RTSN.
 
