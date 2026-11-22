@@ -619,7 +619,16 @@ This completes the initially approved technical behavior for `RTRM009`; any addi
 4. Preserve message contents, attachments, and flags to the extent supported by the IMAP server.
 5. Synchronize affected source and destination folder listings and counters through the established IMAP notification architecture, and invalidate affected cached conversation structures because moving messages changes folder membership.
 
-**Still pending within RTRM011:** the behavior when the IMAP server does **not** support the `MOVE` capability, and any further move-operation decisions.
+**Fallback when the server does not support `MOVE`:**
+
+1. If the server does not advertise `MOVE` but does advertise **`UIDPLUS`**, use a guarded IMAP sequence for the selected source UIDs rather than downloading the messages.
+2. First, use `UID COPY` to copy the selected messages into the destination mailbox. **Do not mark or remove the source messages unless the copy is confirmed successful.**
+3. After a confirmed copy, issue `UID STORE +FLAGS.SILENT (\Deleted)` for the selected source UIDs, then **`UID EXPUNGE` with that UID set** to expunge only those selected source messages.
+4. If neither `MOVE` nor `UIDPLUS` is available, **reject the move as unsupported**. Do not substitute an unrestricted `EXPUNGE`, which could expunge other messages already marked `\Deleted`.
+5. The fallback is **not atomic**. Report the operations' known outcome and any partial failures, including a copy that completed but whose source cleanup failed. **Do not automatically repeat an already completed copy or destructive step**, avoiding unintended duplicates or additional changes.
+6. Synchronize actual server state for the source and destination and invalidate affected conversation-membership caches when folder membership changes, as with `UID MOVE`.
+
+**Still pending within RTRM011:** any further move-operation decisions, including archive/unarchive reuse and detailed result handling.
 
 **Related requirements:** RFRM033–RFRM034, RFRM039, RFRM062; RTRM007; RTSN.
 
