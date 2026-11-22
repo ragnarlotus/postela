@@ -554,7 +554,17 @@ This completes the initially approved technical behavior for `RTRM009`; any addi
 6. Respect IMAP server permissions and report failed or partial operations accurately. Notify other authorized sessions and refresh affected message flags and `thread.flagged` counters through the existing synchronization mechanism.
 7. A change to `\Flagged` must not invalidate or alter the cached conversation-membership structure, although affected flag-derived counters or views must be refreshed.
 
-**Still pending within RTRM010:** whole-folder mark-as-read, group-wide read/unread changes, and any additional flag synchronization details.
+**Mark all unread messages in one folder as read:**
+
+1. Provide an explicit operation for a **single selected mailbox**. Select that IMAP mailbox and verify that the current session has permission to modify the `\Seen` flag.
+2. Run `UID SEARCH UNSEEN` against **only that selected mailbox** to obtain the UIDs currently lacking `\Seen`. Do not traverse or include subfolders.
+3. If no unread UIDs are returned, complete without issuing a `UID STORE` command.
+4. Otherwise, run `UID STORE +FLAGS.SILENT (\Seen)` on the returned UID set, splitting into UID batches if necessary to avoid excessively large commands. Modify only `\Seen`, preserving all other standard and custom flags.
+5. Do not retrieve message bodies, attachments, or full message metadata to perform this operation.
+6. Report failures, including partial failures across batches, without representing the entire operation as successful. After successful changes, synchronize the affected folder's unread count, individual message read flags, and any affected `thread.unread` conversation counters with other authorized account sessions.
+7. Changing read flags does **not** change conversation membership or invalidate the cached `THREAD=REFS` structure, although cached or displayed flag-derived counters must be refreshed.
+
+**Still pending within RTRM010:** explicit conversation-wide read/unread operations and any additional flag synchronization details.
 
 **Related requirements:** RFRM028–RFRM032, RFRM058, RFRM062; RTRM008–RTRM009; RTSN.
 
