@@ -767,7 +767,15 @@ This completes the initially approved technical behavior for `RTRM009`; any addi
 4. Evaluate these criteria on the IMAP server through `UID SEARCH`, without downloading messages to examine their content, persisting a local message index, or duplicating IMAP flag state.
 5. Preserve the containing mailbox, `UIDVALIDITY`, and matching UID for each result, as already required by the approved search-scope behavior.
 
-**Still pending within RTRM014:** date criteria and semantics, AND/OR composition, attachment-presence and size criteria, combined result sorting and global pagination, and related efficiency/fallback decisions.
+**Received-date search criteria:**
+
+1. Date filtering uses **only `received_date`** (the IMAP message `INTERNALDATE`), with optional calendar-date **start** and **end** fields. Do not expose a `sent_date` date filter or a date-type selector.
+2. Translate an inclusive start date to IMAP `SINCE <date>`; translate an inclusive end date to `BEFORE <next-calendar-date>` because `BEFORE` is exclusive. Calculate the following **calendar day**, rather than adding a fixed duration in hours.
+3. When start and end are the **same calendar date**, apply both `SINCE` for that date and `BEFORE` for the following date. Do not use `ON` or introduce a separate exact-date parameter.
+4. Either boundary may be omitted; when both are omitted, do not add a date search condition. Reject invalid date values and any interval whose start date is later than its end date.
+5. Run the date criteria server-side via `UID SEARCH` for each in-scope mailbox, according to IMAP's internal-date calendar-day comparison, without downloading messages to inspect timestamps.
+
+**Still pending within RTRM014:** AND/OR composition, attachment-presence and size criteria, combined result sorting and global pagination, and related efficiency/fallback decisions.
 
 **Related requirements:** RFRM044–RFRM050, RFRM061–RFRM062; RTRM001, RTRM006–RTRM007; RTSN.
 
