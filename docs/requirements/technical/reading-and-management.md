@@ -10,7 +10,7 @@
 
 This document specifies the technical implementation of mailbox reading and management through IMAP, following the functional requirements in `RFRM`.
 
-The requirements are introduced incrementally as their behavior is agreed. `RTRM001` covers folder hierarchy retrieval and status counters; `RTRM002` covers on-demand account storage usage and limit; `RTRM003` covers creation of individual mailboxes and subfolders; `RTRM004` covers folder renaming and movement; `RTRM005` covers folder deletion. `RTRM006` covers filtered, sorted, paginated individual-message listings. `RTRM007` covers grouped-conversation listings and their session cache. `RTRM008` covers individual-message reading, headers, and downloads. `RTRM009` covers conversation reading. `RTRM010` defines explicit IMAP flag modifications incrementally, recording only reviewed and approved decisions below. Searches and remaining message operations will be specified in subsequent requirements.
+The requirements are introduced incrementally as their behavior is agreed. `RTRM001` covers folder hierarchy retrieval and status counters; `RTRM002` covers on-demand account storage usage and limit; `RTRM003` covers creation of individual mailboxes and subfolders; `RTRM004` covers folder renaming and movement; `RTRM005` covers folder deletion. `RTRM006` covers filtered, sorted, paginated individual-message listings. `RTRM007` covers grouped-conversation listings and their session cache. `RTRM008` covers individual-message reading, headers, and downloads. `RTRM009` covers conversation reading. `RTRM010` covers explicit IMAP flag updates, bulk read-state actions, and reuse of the established synchronization mechanisms. Searches and remaining message operations will be specified in subsequent requirements.
 
 ## Technical requirements
 
@@ -594,7 +594,16 @@ This completes the initially approved technical behavior for `RTRM009`; any addi
 7. Synchronize the resulting individual message flags, affected folder unread counters, and `thread.unread` counters across other authorized account sessions. Report permission failures and partial updates accurately.
 8. This grouped-list action respects `thread_multifolder`; **open-conversation** read/unread actions remain account-wide regardless of that preference.
 
-**Still pending within RTRM010:** any additional flag synchronization details.
+**Synchronization and cache behavior for flag changes:**
+
+1. Return an operation result that distinguishes flag updates confirmed to have succeeded from known failures, including partial success when a batch or cross-folder action cannot be fully completed. Do not present unconfirmed updates as successful.
+2. Reuse the existing **per-session WebSocket** and account-authorized notification routing defined in `RTSN007–RTSN008`; do not introduce a separate flag-notification connection or parallel synchronization mechanism.
+3. When a changed folder's message listing needs refreshing, follow `RTSN009`: on the client's refresh request, retrieve **only its currently visible page** through IMAP rather than maintaining a local per-message change history or refreshing unrelated pages.
+4. Synchronize affected folder counters and the grouped-conversation counters `thread.unread` and `thread.flagged` using current IMAP server state. For non-open folders, update only the relevant folder state and counters rather than their message pages.
+5. Preserve the cached `THREAD=REFS` **conversation membership** after changes limited to `\Seen` or `\Flagged`; these flags do not change conversation membership. Refresh or invalidate only the affected flag-derived counters and displayed states.
+6. When some message updates fail, propagate only the changes that actually succeeded and refresh affected states from the IMAP server. Never assume that every requested change was applied.
+
+**RTRM010 is complete for the approved scope.** Further flag-sync protocol details may be specified later if needed without adding another synchronization mechanism.
 
 **Related requirements:** RFRM028–RFRM032, RFRM058, RFRM062; RTRM008–RTRM009; RTSN.
 
