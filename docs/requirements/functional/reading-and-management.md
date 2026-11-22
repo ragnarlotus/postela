@@ -423,9 +423,11 @@ The search must be performed against the server through IMAP rather than against
 
 #### RFRM047 — Combined criteria and logical operators
 
-A search must support multiple simultaneous criteria with both **AND** and **OR** semantics.
+A search must support multiple simultaneous criteria with **AND**, **OR**, and **NOT**, including **nested groups of conditions**. The grouping must allow expressions such as `(subject contains "almuerzo" OR subject contains "comida") AND from contains "pepe"`, not merely one global operator for all criteria.
 
-**AND is the default**, requiring all chosen criteria to match. **OR** allows messages matching at least one criterion. The client must specify the desired operator when it differs from the default.
+**AND** is the default conjunction when no other operator is specified. **OR** matches at least one of its conditions; **NOT** negates the condition or group to which it applies.
+
+Each client application owns its search interface and specifies the requested criteria, grouping, and logical operators for the backend to execute through IMAP. **The concrete client-to-backend request format remains to be defined separately**; this requirement does not prescribe a JSON schema, expression language, or UI design.
 
 #### RFRM048 — Filter by attachment presence
 
