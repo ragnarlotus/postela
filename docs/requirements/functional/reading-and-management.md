@@ -357,7 +357,16 @@ Affected folder listings and counts must be synchronized with actual server stat
 
 Marking one or more messages as spam must **move** them to the configured special `Junk` mailbox.
 
-If the destination is unavailable, Postela must reject the operation without modifying those messages.
+The operation's scope depends on how it is initiated:
+
+- **Individual-message listing:** act only on the messages explicitly selected by the client.
+- **Grouped folder listing:** act on the conversation's related physical messages within the effective `thread_multifolder` scope. With `false`, use the selected folder only; with `true`, include related messages discovered across accessible account folders.
+- **Open conversation, selected individual message(s):** act only on those explicitly selected messages.
+- **Open conversation, entire thread:** act on all discovered related physical messages regardless of `thread_multifolder`.
+
+**When classifying an entire conversation as spam**, always **exclude messages physically stored in the effective special `Sent` mailbox**, even if they fall within the conversation's otherwise applicable scope. Identify this mailbox through the existing special-folder resolution rules, **not** through the message's `From` header. This exclusion does not prevent an explicit individual-message spam action.
+
+If the `Junk` destination is unavailable, Postela must reject the operation without modifying those messages.
 
 #### RFRM041 — Mark messages as not spam
 
@@ -471,7 +480,7 @@ This preference replaces the previously considered `thread_actions_scope` settin
 
 `thread_multifolder` must **not** change which conversations appear in a particular folder listing, the scope of quick filters, or the account-wide scope of `read_thread`.
 
-**Exception for an open conversation:** explicit actions to **mark the entire open conversation as read or unread, or to delete that conversation**, must affect **all discovered related physical messages across the account**, independently of `thread_multifolder`. This does not change the scope of actions initiated from the grouped folder listing or other conversation-wide operations not expressly covered by this exception.
+**Exception for an open conversation:** explicit actions to **mark the entire open conversation as read or unread, delete it, or classify it as spam** must use the **entire discovered account-wide conversation**, independently of `thread_multifolder`. For spam classification only, messages physically stored in the resolved special `Sent` mailbox are excluded. This does not change the scope of actions initiated from the grouped folder listing or other conversation-wide operations not expressly covered by this exception.
 
 #### RFRM056 — Aggregated conversation counters and indicators
 
@@ -516,7 +525,7 @@ A grouped folder-list entry must expose its **representative** (folder/`UIDVALID
 
 The client must be able to request a supported thread-wide operation, including deletion, using this representative. Postela must resolve the relevant physical messages within the effective `thread_multifolder` scope before executing it.
 
-An open conversation may instead supply explicit physical-message identifiers already obtained through `read_thread`. This must avoid redundant conversation discovery, respect applicable account policies and message identity validation, and use the effective scope for the particular action: **explicit whole-conversation read/unread and deletion actions from the open conversation always cover all discovered related physical messages, regardless of `thread_multifolder`**; other thread-wide actions retain their otherwise applicable scope.
+An open conversation may instead supply explicit physical-message identifiers already obtained through `read_thread`. This must avoid redundant conversation discovery, respect applicable account policies and message identity validation, and use the effective scope for the particular action: **explicit whole-conversation read/unread, deletion, and spam-classification actions from the open conversation use all discovered related physical messages, regardless of `thread_multifolder`**, with the **special `Sent` mailbox excluded for whole-conversation spam classification only**; other thread-wide actions retain their otherwise applicable scope.
 
 #### RFRM060 — Group-aware sorting and pagination
 
