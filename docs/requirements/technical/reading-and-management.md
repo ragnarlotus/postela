@@ -564,7 +564,16 @@ This completes the initially approved technical behavior for `RTRM009`; any addi
 6. Report failures, including partial failures across batches, without representing the entire operation as successful. After successful changes, synchronize the affected folder's unread count, individual message read flags, and any affected `thread.unread` conversation counters with other authorized account sessions.
 7. Changing read flags does **not** change conversation membership or invalidate the cached `THREAD=REFS` structure, although cached or displayed flag-derived counters must be refreshed.
 
-**Still pending within RTRM010:** explicit conversation-wide read/unread operations and any additional flag synchronization details.
+**Explicitly mark an open conversation as read or unread (independent of `thread_multifolder`):**
+
+1. When the user requests an explicit whole-conversation read/unread action from the conversation opened with `read_thread`, accept the **complete set of related physical-message identities** already returned by `read_thread` (folder, `UIDVALIDITY`, and UID for each message). The scope is **all those discovered messages across the account**, regardless of `thread_multifolder` and `mark_as_read`.
+2. Reuse those identities without repeating conversation discovery when they remain valid. Group UIDs by mailbox, validate each mailbox's current `UIDVALIDITY`, and respect the server's permission to modify `\Seen`. Report invalid or missing identities rather than applying changes to unintended messages.
+3. **Mark as read:** obtain the currently unread UIDs in each relevant mailbox using `UID SEARCH UNSEEN`, intersect them with the conversation's UID set for that mailbox, and issue `UID STORE +FLAGS.SILENT (\Seen)` only for the matching UIDs.
+4. **Mark as unread:** issue `UID STORE -FLAGS.SILENT (\Seen)` for all supplied conversation UIDs in their respective mailboxes.
+5. Batch IMAP operations by mailbox and use UID sets (splitting into batches if required). Do not download message bodies or attachments, and do not change flags other than `\Seen`.
+6. Propagate successful changes to individual message states, mailbox unread counters, and affected conversation `thread.unread` counters across authorized account sessions. Report partial failures accurately without indicating that an unsuccessful mailbox or message update completed.
+
+**Still pending within RTRM010:** conversation-wide read/unread operations initiated from grouped folder listings (respecting `thread_multifolder`) and any additional flag synchronization details.
 
 **Related requirements:** RFRM028–RFRM032, RFRM058, RFRM062; RTRM008–RTRM009; RTSN.
 
