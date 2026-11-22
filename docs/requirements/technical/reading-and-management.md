@@ -10,7 +10,7 @@
 
 This document specifies the technical implementation of mailbox reading and management through IMAP, following the functional requirements in `RFRM`.
 
-The requirements are introduced incrementally as their behavior is agreed. `RTRM001` covers folder hierarchy retrieval and status counters; `RTRM002` covers on-demand account storage usage and limit; `RTRM003` covers creation of individual mailboxes and subfolders; `RTRM004` covers folder renaming and movement; `RTRM005` covers folder deletion. `RTRM006` covers filtered, sorted, paginated individual-message listings. `RTRM007` covers grouped-conversation listings and their session cache. `RTRM008` covers individual-message reading, headers, and downloads. `RTRM009` covers conversation reading. `RTRM010` covers explicit IMAP flag updates, bulk read-state actions, and reuse of the established synchronization mechanisms. `RTRM011` covers message moves, archive/unarchive reuse, and safe handling of confirmed, partial, and uncertain outcomes. `RTRM012` covers selected-message deletion, permanent deletion, emptying folders, and deleting conversations from both grouped listings and open conversation views. `RTRM013` specifies spam-classification behavior incrementally, recording only reviewed and approved decisions below. Searches and remaining message operations will be specified in subsequent requirements.
+The requirements are introduced incrementally as their behavior is agreed. `RTRM001` covers folder hierarchy retrieval and status counters; `RTRM002` covers on-demand account storage usage and limit; `RTRM003` covers creation of individual mailboxes and subfolders; `RTRM004` covers folder renaming and movement; `RTRM005` covers folder deletion. `RTRM006` covers filtered, sorted, paginated individual-message listings. `RTRM007` covers grouped-conversation listings and their session cache. `RTRM008` covers individual-message reading, headers, and downloads. `RTRM009` covers conversation reading. `RTRM010` covers explicit IMAP flag updates, bulk read-state actions, and reuse of the established synchronization mechanisms. `RTRM011` covers message moves, archive/unarchive reuse, and safe handling of confirmed, partial, and uncertain outcomes. `RTRM012` covers selected-message deletion, permanent deletion, emptying folders, and deleting conversations from both grouped listings and open conversation views. `RTRM013` covers spam and not-spam classification using IMAP message moves and the approved conversation-scoping rules. Searches and remaining message operations will be specified in subsequent requirements.
 
 ## Technical requirements
 
@@ -715,7 +715,7 @@ This completes the initially approved technical behavior for `RTRM009`; any addi
 
 ### Spam classification
 
-#### RTRM013 — Mark messages or conversations as spam
+#### RTRM013 — Classify messages and conversations as spam or not spam
 
 **Mark as spam by moving selected physical messages to Junk:**
 
@@ -733,7 +733,16 @@ This completes the initially approved technical behavior for `RTRM009`; any addi
 2. Return an identifiable error stating that the account's special `Sent` folder must be configured or made available. Never guess a Sent mailbox from its name or a message's `From` header.
 3. This restriction applies **only to whole-conversation spam classification**. Continue to allow explicit spam classification of individually selected physical messages, subject to the normal `Junk` destination and identity validations.
 
-**Still pending within RTRM013:** marking messages as not spam.
+**Mark messages as not spam by moving them from Junk to INBOX:**
+
+1. Provide `mark_as_not_spam`. Resolve the effective special `junk` source mailbox using `RTGS` and use the existing `INBOX` mailbox as destination. Validate that the source and destination are available and permit the operation; if the necessary destination is unavailable, do not move messages.
+2. **Individual-message listing in Junk:** accept and move only the explicitly selected physical messages. **Grouped conversation listing in Junk:** resolve the conversation's related physical members **in Junk only**; do not expand the move to other folders even when `thread_multifolder = true`.
+3. **Open `read_thread` view, individual message:** move only the selected message if physically located in Junk. **Whole open conversation:** use the physical message identities already discovered by `read_thread`, selecting **only those located in Junk**, independently of `thread_multifolder` and without repeating conversation discovery.
+4. Leave messages in `INBOX`, `Sent`, and every other non-Junk mailbox **unchanged**. This operation does not use `thread_multifolder` to widen the affected set beyond Junk.
+5. Validate each selected message's source-folder `UIDVALIDITY` and UID, and reuse the generic `move_messages` implementation from `RTRM011` (primary `UID MOVE`, approved `UIDPLUS` fallback). Use UID sets and batching where appropriate; do not retrieve bodies or attachments.
+6. Apply the existing partial/uncertain-result rules and synchronize the affected message listings, counters, and cached conversation membership via the established account-session mechanisms.
+
+**RTRM013 is complete for the approved scope.**
 
 **Related requirements:** RFRM040–RFRM043, RFRM055, RFRM059, RFRM062; RTGS011–RTGS016; RTRM009, RTRM011; RTSN.
 
