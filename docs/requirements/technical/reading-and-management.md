@@ -491,7 +491,17 @@ The distinct `read_thread` operation must open a complete discoverable conversat
 5. The scope of `read_thread` is **independent of `thread_multifolder`**. That preference controls grouped-list counters and group-wide actions, not the scope of conversation reading.
 6. The discoverable set of related physical messages must not depend on which existing member of that conversation was selected as the entry point. The detailed IMAP cross-folder discovery strategy is subject to a separate approved decision.
 
-**Still pending within RTRM009:** technical cross-folder membership discovery, message ordering and distinct physical copies, message-content retrieval, and the selected-message-only read-state change.
+**On-demand discovery of related messages across folders:**
+
+1. Starting from the validated entry-point message, use UID-targeted `FETCH` to obtain its `Message-ID`, `In-Reply-To`, and `References` headers, without retrieving its body or attachments.
+2. Search **all accessible folders of the authenticated account** using IMAP `UID SEARCH HEADER` criteria for the known message identifiers in the relevant threading headers (`Message-ID`, `In-Reply-To`, and `References`). Do not treat a shared subject or sender as evidence of a conversation relationship.
+3. Treat search results as **candidates**, not confirmed members: retrieve the candidate messages' threading headers and verify their explicit identifier relationships, since `SEARCH HEADER` may match substrings rather than whole message identifiers.
+4. Expand the set of known identifiers and repeat searches as needed until no new related physical messages can be discovered. Relationships preserved in `References` can connect surviving messages through identifiers of intermediate messages that were moved or deleted.
+5. Retain each discovered physical message separately, identified by **folder, `UIDVALIDITY`, and UID**, even when multiple physical copies share the same `Message-ID`. Do not deduplicate physical copies by message identifier.
+6. Discover membership using only the necessary message headers; **do not download bodies or attachments** in this phase. Do not persist a local account-wide message or conversation index.
+7. Return the related messages actually discovered; do not claim that the absence of additional results proves that no other related messages exist.
+
+**Still pending within RTRM009:** chronological ordering and handling distinct physical copies in the returned result, message-content retrieval, and the selected-message-only read-state change.
 
 **Related requirements:** RFRM017–RFRM021, RFRM053–RFRM055, RFRM062; RTRM008.
 
