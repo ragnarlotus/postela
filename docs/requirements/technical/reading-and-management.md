@@ -325,7 +325,16 @@ When the effective account preference is `thread_view = true`, Postela must use 
 4. Choose the most recent eligible message in the selected folder as the representative of each listed conversation. This fallback must not query messages in other folders merely to choose representatives.
 5. Keep this date retrieval limited to the page's conversations; do not download full message bodies or attachments. The backend must not claim that the **conversation listing itself** is sorted when the server supplies no usable sorting capability.
 
-**Still pending:** grouped-list sorting and pagination with available sorting capabilities, conversation counters, and detailed cache lifecycle.
+**Grouped-conversation sorting and pagination when `SORT` is available:**
+
+1. Obtain or reuse the complete folder-local `UID THREAD REFS` conversation structure, apply approved folder-local quick filters, and determine one eligible representative UID for each matching conversation using the representative-selection rules above.
+2. Use IMAP **`UID SORT`** to request message UIDs in the effective sorting criterion and direction chosen by the client, applying the previously agreed available-criterion fallbacks. The IMAP server performs the ordering; Postela must not retrieve every message's metadata to sort locally.
+3. Cross-reference the server-ordered UIDs with the **representative UID of each eligible conversation**, retaining each representative only once to form an ordered list of **conversations**, not individual messages.
+4. Apply `page_size` and the requested page to that ordered list of conversations **after** folder-local filtering and conversation ordering. `page_size` therefore counts conversations when `thread_view = true`.
+5. Fetch only the listing metadata needed for the representative messages of the requested conversation page, without fetching full bodies or attachments. Preserve the computed conversation order in the response.
+6. **Do not use `CONTEXT=SORT` `PARTIAL` directly to page conversations:** its range refers to message positions, which do not correspond to conversation positions. Even when partial results are supported, the grouping and deduplication of representative UIDs must precede pagination.
+
+**Still pending:** conversation-counter computation and detailed cache lifecycle.
 
 
 
