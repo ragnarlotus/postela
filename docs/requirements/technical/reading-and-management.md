@@ -10,7 +10,7 @@
 
 This document specifies the technical implementation of mailbox reading and management through IMAP, following the functional requirements in `RFRM`.
 
-The requirements are introduced incrementally as their behavior is agreed. `RTRM001` covers folder hierarchy retrieval and status counters; `RTRM002` covers on-demand account storage usage and limit; `RTRM003` covers creation of individual mailboxes and subfolders; `RTRM004` covers folder renaming and movement; `RTRM005` covers folder deletion. `RTRM006` covers filtered, sorted, paginated individual-message listings. `RTRM007` covers grouped-conversation listings and their session cache. `RTRM008` covers individual-message reading, headers, and downloads. `RTRM009` defines conversation reading incrementally, recording only reviewed and approved decisions below. Searches and remaining message operations will be specified in subsequent requirements.
+The requirements are introduced incrementally as their behavior is agreed. `RTRM001` covers folder hierarchy retrieval and status counters; `RTRM002` covers on-demand account storage usage and limit; `RTRM003` covers creation of individual mailboxes and subfolders; `RTRM004` covers folder renaming and movement; `RTRM005` covers folder deletion. `RTRM006` covers filtered, sorted, paginated individual-message listings. `RTRM007` covers grouped-conversation listings and their session cache. `RTRM008` covers individual-message reading, headers, and downloads. `RTRM009` covers conversation reading. `RTRM010` defines explicit IMAP flag modifications incrementally, recording only reviewed and approved decisions below. Searches and remaining message operations will be specified in subsequent requirements.
 
 ## Technical requirements
 
@@ -530,6 +530,23 @@ The distinct `read_thread` operation must open a complete discoverable conversat
 This completes the initially approved technical behavior for `RTRM009`; any additional implementation decisions remain subject to separate validation.
 
 **Related requirements:** RFRM017–RFRM021, RFRM053–RFRM055, RFRM062; RTRM008.
+
+### Message flag operations
+
+#### RTRM010 — Explicitly set or clear message flags
+
+**Mark one or multiple messages as read or unread (`\Seen`):**
+
+1. Accept one or multiple message identities, each including **folder, `UIDVALIDITY`, and UID**, and the explicitly requested target read state. This operation must be available independently of the account's automatic `mark_as_read` preference.
+2. Group selected messages by mailbox; validate the current `UIDVALIDITY` for each selected mailbox before modifying any UID belonging to it. Respect server permissions for changing message flags.
+3. To mark messages as read, issue UID-targeted `UID STORE +FLAGS.SILENT (\Seen)`; to mark them as unread, use `UID STORE -FLAGS.SILENT (\Seen)`.
+4. Where multiple messages reside in the same mailbox, batch their UIDs into a UID set instead of sending a separate `STORE` for each message.
+5. Modify **only `\Seen`**, preserving all unrelated IMAP flags and custom keywords, including `\Answered`, `\Flagged`, and `\Draft`.
+6. Report permission, identity, missing-message, or other IMAP failures without claiming that failed operations succeeded. Notify the other authorized sessions through the existing IMAP synchronization mechanism so affected individual message states, folder unread counters, and conversation unread counters are refreshed.
+
+**Still pending within RTRM010:** explicit `\Flagged` changes, whole-folder mark-as-read, group-wide read/unread changes, and any additional flag synchronization details.
+
+**Related requirements:** RFRM028–RFRM032, RFRM058, RFRM062; RTRM008–RTRM009; RTSN.
 
 ## Scope boundaries and follow-up documentation
 
