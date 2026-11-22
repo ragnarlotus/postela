@@ -681,7 +681,15 @@ This completes the initially approved technical behavior for `RTRM009`; any addi
 6. Use UID sets and batches when appropriate; do not retrieve message bodies or attachments. Messages arriving after the `UID SEARCH ALL` result are **not automatically added** to this operation.
 7. Synchronize the affected mailbox listings, counters, and conversation-membership caches according to confirmed server changes. Report partial or uncertain results accurately, and do not automatically retry an uncertain destructive operation.
 
-**Still pending within RTRM012:** conversation deletion and any further deletion decisions.
+**Delete a conversation from a grouped folder listing when `thread_multifolder = false`:**
+
+1. Provide `delete_thread` accepting the grouped-list representative's **source folder, `UIDVALIDITY`, and UID**, and validate that identity against the selected IMAP mailbox.
+2. Resolve the conversation's physical member UIDs **only within that selected folder**, reusing the valid cached `THREAD=REFS` structure when available. Do not include related messages or copies residing in other folders.
+3. Include **all identified physical copies** within the selected mailbox, even when they share a `Message-ID`. Apply the account's effective `delete_to_trash` policy to the resolved UID set using the already-approved `RTRM012` deletion mechanisms (move to Trash when required, or permanent deletion when required, including messages already in Trash).
+4. Group UIDs into suitable batches and **do not fetch message bodies or attachments**. Do not rely on the client's current message selection or require the full conversation to have been opened.
+5. Synchronize the affected folder lists, counters, and cached conversation membership after confirmed changes. Report partial failures or uncertain outcomes without automatically repeating uncertain destructive operations.
+
+**Still pending within RTRM012:** grouped-list conversation deletion with `thread_multifolder = true`, deletion initiated from an open conversation, and any further deletion decisions.
 
 **Related requirements:** RFRM035–RFRM039, RFRM062; RTGS011–RTGS015, RTGS022; RTRM007, RTRM011; RTSN.
 
