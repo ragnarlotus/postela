@@ -460,7 +460,7 @@ The representative must belong to the listed folder. It is the newest message fr
 
 #### RFRM055 — Configurable multi-folder conversation scope
 
-An account-wide boolean preference `thread_multifolder` must control the scope of **grouped conversation counters and actions**. Its initial Postela default is **`false`**, overridable by the administrator and user.
+An account-wide boolean preference `thread_multifolder` must control the scope of **grouped folder-list conversation counters and actions**. Its initial Postela default is **`false`**, overridable by the administrator and user.
 
 - **`false`:** count and act on related messages only in the selected folder.
 - **`true`:** count and act on related messages across all available folders of the account, including `Sent`, `Archive`, and other folders.
@@ -468,6 +468,8 @@ An account-wide boolean preference `thread_multifolder` must control the scope o
 This preference replaces the previously considered `thread_actions_scope` setting; `thread_actions_scope` must not be introduced as a separate preference.
 
 `thread_multifolder` must **not** change which conversations appear in a particular folder listing, the scope of quick filters, or the account-wide scope of `read_thread`.
+
+**Exception for an open conversation:** an explicit action to mark the **entire conversation currently opened with `read_thread`** as read or unread must affect **all discovered related physical messages across the account**, independently of `thread_multifolder`. This exception does not change the scope of actions initiated from the grouped folder listing or the scope of other conversation-wide operations.
 
 #### RFRM056 — Aggregated conversation counters and indicators
 
@@ -495,12 +497,14 @@ The application must not search other folders merely to decide whether a grouped
 
 From a grouped folder listing, the user must be able to mark a conversation as read or unread.
 
-The operation must affect the messages belonging to that conversation in the scope defined by `thread_multifolder`:
+**When initiated from the grouped folder listing**, the operation must affect the messages belonging to that conversation in the scope defined by `thread_multifolder`:
 
 - Mark as read: set `\Seen` on the applicable unread messages.
 - Mark as unread: clear `\Seen` on all applicable messages.
 
-These **explicit group-wide actions** are separate from automatically marking the selected message as read on `read_thread`; the latter must continue to affect only the message the user opened when `mark_as_read` is enabled.
+**When initiated explicitly for an open conversation displayed through `read_thread`**, marking the whole conversation as read or unread must apply to **all discovered related physical messages across the account**, regardless of `thread_multifolder`. The same read/unread flag semantics apply.
+
+These **explicit group-wide actions** are separate from automatically marking the selected message as read on `read_thread`; merely opening a conversation must continue to affect only the message the user opened when `mark_as_read` is enabled.
 
 Affected per-folder state and grouped counters must be synchronized with active sessions.
 
@@ -510,7 +514,7 @@ A grouped folder-list entry must expose its **representative** (folder/`UIDVALID
 
 The client must be able to request a supported thread-wide operation, including deletion, using this representative. Postela must resolve the relevant physical messages within the effective `thread_multifolder` scope before executing it.
 
-An open conversation may instead supply explicit physical-message identifiers already obtained through `read_thread`. This must avoid redundant conversation discovery and must still respect the effective action scope, applicable account policies, and message identity validation.
+An open conversation may instead supply explicit physical-message identifiers already obtained through `read_thread`. This must avoid redundant conversation discovery, respect applicable account policies and message identity validation, and use the effective scope for the particular action: **explicit whole-conversation read/unread actions from the open conversation always cover all discovered related physical messages, regardless of `thread_multifolder`**; other thread-wide actions retain their otherwise applicable scope.
 
 #### RFRM060 — Group-aware sorting and pagination
 
