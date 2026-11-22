@@ -775,7 +775,14 @@ This completes the initially approved technical behavior for `RTRM009`; any addi
 4. Either boundary may be omitted; when both are omitted, do not add a date search condition. Reject invalid date values and any interval whose start date is later than its end date.
 5. Run the date criteria server-side via `UID SEARCH` for each in-scope mailbox, according to IMAP's internal-date calendar-day comparison, without downloading messages to inspect timestamps.
 
-**Still pending within RTRM014:** AND/OR composition, attachment-presence and size criteria, combined result sorting and global pagination, and related efficiency/fallback decisions.
+**Nested boolean composition of search criteria:**
+
+1. Accept search criteria and their **logical grouping** from the client application, supporting nested combinations of **AND**, **OR**, and **NOT**. Do not restrict searches to a single global AND/OR operator.
+2. Translate each requested condition and group into the equivalent server-side IMAP `UID SEARCH` search-key expression: juxtaposed keys for AND, IMAP's binary `OR` for alternatives (nested where necessary), and `NOT` for negation, preserving group precedence.
+3. Preserve grouped semantics when a condition is itself composite, such as an all-recipients match over `TO`, `CC`, and `BCC`. Validate the requested criteria and structure and construct IMAP commands safely rather than passing arbitrary client-provided IMAP syntax through to the server.
+4. Leave **the frontend search interface and the concrete client-to-backend request format unspecified** until a separate decision. The backend must remain capable of expressing the approved nested boolean logic without requiring any particular transport schema or UI design in this requirement.
+
+**Still pending within RTRM014:** concrete search request format, attachment-presence and size criteria, combined result sorting and global pagination, and related efficiency/fallback decisions.
 
 **Related requirements:** RFRM044–RFRM050, RFRM061–RFRM062; RTRM001, RTRM006–RTRM007; RTSN.
 
