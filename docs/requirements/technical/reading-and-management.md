@@ -10,7 +10,7 @@
 
 This document specifies the technical implementation of mailbox reading and management through IMAP, following the functional requirements in `RFRM`.
 
-The requirements are introduced incrementally as their behavior is agreed. `RTRM001` covers folder hierarchy retrieval and status counters; `RTRM002` covers on-demand account storage usage and limit; `RTRM003` covers creation of individual mailboxes and subfolders; `RTRM004` covers folder renaming and movement; `RTRM005` covers folder deletion. `RTRM006` covers filtered, sorted, paginated individual-message listings. `RTRM007` covers grouped-conversation listings and their session cache. `RTRM008` covers individual-message reading, headers, and downloads. `RTRM009` covers conversation reading. `RTRM010` covers explicit IMAP flag updates, bulk read-state actions, and reuse of the established synchronization mechanisms. `RTRM011` covers message moves, archive/unarchive reuse, and safe handling of confirmed, partial, and uncertain outcomes. `RTRM012` covers selected-message deletion, permanent deletion, emptying folders, and deleting conversations from both grouped listings and open conversation views. `RTRM013` covers spam and not-spam classification using IMAP message moves and the approved conversation-scoping rules. Searches and remaining message operations will be specified in subsequent requirements.
+The requirements are introduced incrementally as their behavior is agreed. `RTRM001` covers folder hierarchy retrieval and status counters; `RTRM002` covers on-demand account storage usage and limit; `RTRM003` covers creation of individual mailboxes and subfolders; `RTRM004` covers folder renaming and movement; `RTRM005` covers folder deletion. `RTRM006` covers filtered, sorted, paginated individual-message listings. `RTRM007` covers grouped-conversation listings and their session cache. `RTRM008` covers individual-message reading, headers, and downloads. `RTRM009` covers conversation reading. `RTRM010` covers explicit IMAP flag updates, bulk read-state actions, and reuse of the established synchronization mechanisms. `RTRM011` covers message moves, archive/unarchive reuse, and safe handling of confirmed, partial, and uncertain outcomes. `RTRM012` covers selected-message deletion, permanent deletion, emptying folders, and deleting conversations from both grouped listings and open conversation views. `RTRM013` covers spam and not-spam classification using IMAP message moves and the approved conversation-scoping rules. `RTRM014` defines IMAP search incrementally, recording only reviewed and approved decisions below. Remaining message operations will be specified in subsequent requirements.
 
 ## Technical requirements
 
@@ -745,6 +745,23 @@ This completes the initially approved technical behavior for `RTRM009`; any addi
 **RTRM013 is complete for the approved scope.**
 
 **Related requirements:** RFRM040–RFRM043, RFRM055, RFRM059, RFRM062; RTGS011–RTGS016; RTRM009, RTRM011; RTSN.
+
+### Message search
+
+#### RTRM014 — On-demand IMAP message search
+
+**Mailbox scope for folder searches and account-wide searches:**
+
+1. Reuse the complete, server-derived IMAP mailbox inventory and hierarchy relationships from `RTRM001`, including full mailbox names, hierarchy delimiters, selectable status, and unsubscribed mailboxes.
+2. **Folder-scoped search:** include the selected mailbox and **all of its descendant mailboxes at any depth**. Determine descendants using the actual hierarchy relationships/delimiters, not ambiguous string-prefix matches between similarly named folders.
+3. **Account-wide search:** include **all available account mailboxes**, including special `Trash` and `Junk` mailboxes and unsubscribed folders; do not implicitly limit the scope to `INBOX` or exclude folders by special role.
+4. For every **selectable mailbox** within the requested scope, perform a server-side **`UID SEARCH`** using an on-demand IMAP connection. Do not download message bodies or attachments merely to evaluate the search. Retain non-selectable (`\Noselect`) folders in the hierarchy, but do not attempt `UID SEARCH` within them; their selectable descendants remain eligible.
+5. Preserve the containing **mailbox, its current `UIDVALIDITY`, and each matching UID** as the identity of every result, including results spanning several mailboxes.
+6. Distinguish successful searches with no matches from failed mailbox queries. Report which mailboxes failed and do not present partial multi-mailbox results as exhaustive; retain valid results from successfully queried mailboxes when possible.
+
+**Still pending within RTRM014:** IMAP search criteria and date semantics, AND/OR composition, attachment-presence and size criteria, combined result sorting and global pagination, and related efficiency/fallback decisions.
+
+**Related requirements:** RFRM044–RFRM050, RFRM061–RFRM062; RTRM001, RTRM006–RTRM007; RTSN.
 
 ## Scope boundaries and follow-up documentation
 
