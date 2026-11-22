@@ -583,7 +583,18 @@ This completes the initially approved technical behavior for `RTRM009`; any addi
 6. Synchronize affected individual flags, mailbox unread counts, and `thread.unread` counters. Respect IMAP permissions, report failed or partial operations accurately, and keep cached conversation membership unchanged.
 7. This **grouped-list action** uses the effective `thread_multifolder` scope; it is distinct from the already approved read/unread operation on an **open conversation**, which always covers all its discovered related messages.
 
-**Still pending within RTRM010:** conversation-wide read/unread actions from grouped folder listings with `thread_multifolder = true`, and any additional flag synchronization details.
+**Explicit conversation read/unread actions from a grouped folder listing when `thread_multifolder = true`:**
+
+1. Accept the **folder, `UIDVALIDITY`, and UID** of the representative message supplied by the grouped folder listing and validate its identity.
+2. Resolve the related physical messages across **all accessible folders of the account**, reusing the approved `RTRM009` cross-folder discovery mechanism **without retrieving bodies or attachments**.
+3. Reuse related-message identities already available in the current session cache where they remain valid, avoiding redundant discovery when possible.
+4. **Mark as read:** identify which discovered related messages remain unread and apply `UID STORE +FLAGS.SILENT (\Seen)` to only those messages in their respective mailboxes.
+5. **Mark as unread:** apply `UID STORE -FLAGS.SILENT (\Seen)` to all discovered related messages in their respective mailboxes.
+6. Group operations by mailbox, use UID sets and batches as appropriate, and validate each selected mailbox's `UIDVALIDITY` and IMAP permissions. Preserve all other flags.
+7. Synchronize the resulting individual message flags, affected folder unread counters, and `thread.unread` counters across other authorized account sessions. Report permission failures and partial updates accurately.
+8. This grouped-list action respects `thread_multifolder`; **open-conversation** read/unread actions remain account-wide regardless of that preference.
+
+**Still pending within RTRM010:** any additional flag synchronization details.
 
 **Related requirements:** RFRM028–RFRM032, RFRM058, RFRM062; RTRM008–RTRM009; RTSN.
 
