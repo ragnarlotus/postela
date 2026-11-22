@@ -317,7 +317,15 @@ When the effective account preference is `thread_view = true`, Postela must use 
 3. Select the first eligible UID in the resulting most-recent-first order for each conversation. **Do not infer message recency from the numerically largest UID** and do not fetch metadata for the entire folder solely to choose representatives.
 4. This representative-selection ordering is **independent of the user's requested sorting criterion for the conversation listing**. Grouped-list sorting and pagination are separate decisions.
 
-**Still pending:** representative selection if the server lacks `SORT`, grouped-list sorting and pagination, conversation counters, and detailed cache lifecycle.
+**Representative message when the IMAP server lacks `SORT`:**
+
+1. Obtain the full folder-local conversation structure through `UID THREAD REFS` and apply the approved folder-local quick filters.
+2. **Do not sort the complete folder locally** or retrieve metadata for every message to emulate missing IMAP sorting. For the unsorted fallback, retain the conversation order provided by IMAP and determine the requested page of conversation entries first.
+3. Only for conversations on that page, use `UID FETCH` to obtain the necessary message dates of their eligible member UIDs. When quick filters are active, restrict candidates for representative selection to members matching every active filter.
+4. Choose the most recent eligible message in the selected folder as the representative of each listed conversation. This fallback must not query messages in other folders merely to choose representatives.
+5. Keep this date retrieval limited to the page's conversations; do not download full message bodies or attachments. The backend must not claim that the **conversation listing itself** is sorted when the server supplies no usable sorting capability.
+
+**Still pending:** grouped-list sorting and pagination with available sorting capabilities, conversation counters, and detailed cache lifecycle.
 
 
 
