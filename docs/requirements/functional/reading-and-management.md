@@ -366,6 +366,8 @@ The operation's scope depends on how it is initiated:
 
 **When classifying an entire conversation as spam**, always **exclude messages physically stored in the effective special `Sent` mailbox**, even if they fall within the conversation's otherwise applicable scope. Identify this mailbox through the existing special-folder resolution rules, **not** through the message's `From` header. This exclusion does not prevent an explicit individual-message spam action.
 
+If the special `Sent` mailbox **cannot be resolved unambiguously and validated as available**, Postela must **reject only whole-conversation spam classification** with an identifiable error requesting a valid `Sent` mapping. Explicitly selected individual-message spam classification must remain available. Postela must not guess the Sent mailbox by name or by `From`.
+
 If the `Junk` destination is unavailable, Postela must reject the operation without modifying those messages.
 
 #### RFRM041 — Mark messages as not spam
