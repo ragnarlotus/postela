@@ -426,7 +426,16 @@ The `read_message` operation must retrieve **only the message explicitly request
 5. The client-side content-security policy for displaying mail must permit the necessary **image-only `data:` URLs** without permitting active embedded content or automatically authorizing externally hosted resources.
 6. Do not persist these extracted images or modify the original message stored on IMAP. The separate `.eml` download continues to preserve the original content.
 
-**Still pending within RTRM008:** exact trusted-sender/remote-content handling, complete original headers, and attachment retrieval.
+**Preventive blocking of remote resources:**
+
+1. During backend HTML sanitization, identify externally hosted resources whose references may trigger automatic browser requests, including image sources, CSS background resources, and `srcset` entries.
+2. Replace these fetch-triggering references with **inert placeholders**, retaining the original URLs as associated resource metadata. The HTML initially returned to the frontend must not contain active externally hosted references that could be loaded automatically.
+3. The frontend initially renders the sanitized message **without activating remote references**, so displaying the message cannot accidentally initiate remote-resource downloads.
+4. Only when the sender satisfies the already-approved trusted-sender authorization policy may the frontend restore the **specifically allowed remote references** for browser loading. Authenticity verification and the precise authorization decision are to be specified in a subsequent separately approved decision.
+5. Inline CID images already embedded as validated `data:image/...;base64,...` URLs remain available immediately and are independent of the remote-sender trust decision.
+6. Ordinary clickable links such as `<a href="https://...">` may remain available after sanitization because merely displaying them does not trigger automatic loading. Active content and dangerous URL schemes remain prohibited regardless of sender trust.
+
+**Still pending within RTRM008:** trusted-sender authenticity verification/authorization, complete original headers, and attachment retrieval.
 
 **Related requirements:** RFRM017, RFRM018, RFRM024, RFRM026–RFRM027, RFRM062; RFGS010–RFGS012; RTCA session and connection rules.
 
