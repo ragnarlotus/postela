@@ -343,7 +343,16 @@ When the effective account preference is `thread_view = true`, Postela must use 
 5. These counters cover **all member messages physically in the selected folder**, regardless of which messages matched the active quick filters. Do not include related messages from other folders when `thread_multifolder = false`.
 6. Do not use per-message `FETCH` solely to count unread or flagged messages; rely on the IMAP search results and the conversation structure.
 
-**Still pending:** cross-folder conversation counters (`thread_multifolder = true`) and detailed cache lifecycle.
+**Cross-folder conversation counters (`thread_multifolder = true`):**
+
+1. Determine the conversations included in the requested page using the **selected folder's** complete `UID THREAD REFS` structure, quick filters, representative selection, sorting, and pagination as agreed above. Do not expand the folder-local quick-filter scope or change which conversations appear on that page.
+2. **Only for conversations on that page**, discover their related physical messages in other available account folders on demand, using explicit `Message-ID`, `In-Reply-To`, and `References` relationships. Do not treat a matching subject or sender alone as proof of conversation membership.
+3. Track each discovered physical message with its source folder, `UIDVALIDITY`, and UID. Distinct physical copies sharing a `Message-ID` must still be counted separately.
+4. Obtain the necessary read and flagged state from IMAP without downloading message bodies or attachments. Derive `thread.count` from the number of discovered physical messages, `thread.unread` from messages without `\\Seen`, and `thread.flagged` from those with `\\Flagged`.
+5. If querying another folder fails, **preserve the folder-local listing and quick filters**. Apply the existing transient-connection retry policy. Return `null` for any affected aggregate counter that cannot be established reliably, together with identifiable error information; never present a partial value as an exact count. Counters that remain reliable may still be returned.
+6. Do not persist a local message or conversation index. Cross-folder discovery is performed only for the page's conversations, not for conversations on other pages.
+
+**Still pending:** detailed conversation-structure cache lifecycle and invalidation rules.
 
 
 
