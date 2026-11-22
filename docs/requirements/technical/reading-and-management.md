@@ -310,7 +310,16 @@ When the effective account preference is `thread_view = true`, Postela must use 
 4. Include a conversation in the filtered listing if **at least one of its messages belonging to the currently selected folder** matches every active filter. Do not search other folders to determine whether a conversation qualifies.
 5. Filtering must not split a conversation, change its complete membership, or reduce its reported conversation counters to the subset of matching messages. Technical rules for counter calculation and representative selection are specified separately.
 
-**Pending decisions within RTRM007:** selection of representative messages, grouped sorting and pagination, conversation-counter computation, and detailed cache behavior. These aspects will be defined through separately reviewed technical decisions.
+**Representative message when the IMAP server supports `SORT`:**
+
+1. Determine each conversation's representative **only from its messages in the currently selected folder**. With no quick filters, select its most recent message; with `UNSEEN`, `FLAGGED`, or both, select its most recent message that satisfies all active filters.
+2. Obtain the server's message-date ordering through `UID SORT` and cross-reference the resulting ordered UIDs with the complete folder-local `UID THREAD REFS` conversation structure. Where quick filters are active, use the folder-local matching UID set already obtained via `UID SEARCH` when selecting a representative.
+3. Select the first eligible UID in the resulting most-recent-first order for each conversation. **Do not infer message recency from the numerically largest UID** and do not fetch metadata for the entire folder solely to choose representatives.
+4. This representative-selection ordering is **independent of the user's requested sorting criterion for the conversation listing**. Grouped-list sorting and pagination are separate decisions.
+
+**Still pending:** representative selection if the server lacks `SORT`, grouped-list sorting and pagination, conversation counters, and detailed cache lifecycle.
+
+
 
 **Related requirements:** RFRM012, RFRM014–RFRM015, RFRM053–RFRM054, RFRM057; RTGS025; RTRM006.
 
