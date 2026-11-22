@@ -372,9 +372,16 @@ If the `Junk` destination is unavailable, Postela must reject the operation with
 
 #### RFRM041 — Mark messages as not spam
 
-Marking messages as **not spam** must move the selected messages from `Junk` to `INBOX`.
+Marking messages as **not spam** must move the selected messages from the configured special `Junk` mailbox to `INBOX`.
 
-If the required destination is unavailable, the move must not take place.
+The operation's scope depends on how it is initiated:
+
+- **Individual-message listing in Junk:** act only on the messages explicitly selected by the client.
+- **Grouped conversation listing in Junk:** act on all physical members of that conversation **stored in Junk**, independently of `thread_multifolder`. Do not move related messages from other folders.
+- **Open conversation, selected individual message:** act only on the selected message when it is physically stored in Junk.
+- **Open conversation, entire thread:** act on **all discovered related physical messages stored in Junk**, independently of `thread_multifolder`.
+
+Messages already in `INBOX`, `Sent`, or any other non-Junk folder must remain in their current folders. If the required source or destination cannot be resolved or used, the move must not take place.
 
 #### RFRM042 — Classification and retention boundaries
 
