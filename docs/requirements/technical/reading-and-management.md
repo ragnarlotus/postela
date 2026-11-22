@@ -759,7 +759,15 @@ This completes the initially approved technical behavior for `RTRM009`; any addi
 5. Preserve the containing **mailbox, its current `UIDVALIDITY`, and each matching UID** as the identity of every result, including results spanning several mailboxes.
 6. Distinguish successful searches with no matches from failed mailbox queries. Report which mailboxes failed and do not present partial multi-mailbox results as exhaustive; retain valid results from successfully queried mailboxes when possible.
 
-**Still pending within RTRM014:** IMAP search criteria and date semantics, AND/OR composition, attachment-presence and size criteria, combined result sorting and global pagination, and related efficiency/fallback decisions.
+**Text and message-flag search criteria:**
+
+1. Support sender searches with IMAP `FROM`; recipient searches with `TO`, `CC`, and `BCC`. An all-recipients criterion matches any of these recipient fields.
+2. Support subject searches with `SUBJECT`, message-body searches with `BODY`, and searches across message headers and body with `TEXT`. Keep body-only and headers-plus-body searches distinct.
+3. Support message-state searches using IMAP `SEEN`/`UNSEEN` (read/unread), `FLAGGED`/`UNFLAGGED` (flagged/unflagged), and `ANSWERED`/`UNANSWERED` (answered/unanswered). Do **not** introduce standalone `DRAFT`/`UNDRAFT` search filters; drafts can be accessed through their mailbox.
+4. Evaluate these criteria on the IMAP server through `UID SEARCH`, without downloading messages to examine their content, persisting a local message index, or duplicating IMAP flag state.
+5. Preserve the containing mailbox, `UIDVALIDITY`, and matching UID for each result, as already required by the approved search-scope behavior.
+
+**Still pending within RTRM014:** date criteria and semantics, AND/OR composition, attachment-presence and size criteria, combined result sorting and global pagination, and related efficiency/fallback decisions.
 
 **Related requirements:** RFRM044–RFRM050, RFRM061–RFRM062; RTRM001, RTRM006–RTRM007; RTSN.
 
