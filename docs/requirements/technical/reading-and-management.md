@@ -10,7 +10,7 @@
 
 This document specifies the technical implementation of mailbox reading and management through IMAP, following the functional requirements in `RFRM`.
 
-The requirements are introduced incrementally as their behavior is agreed. `RTRM001` covers folder hierarchy retrieval and status counters; `RTRM002` covers on-demand account storage usage and limit; `RTRM003` covers creation of individual mailboxes and subfolders; `RTRM004` covers folder renaming and movement; `RTRM005` covers folder deletion. `RTRM006` covers filtered, sorted, paginated individual-message listings. Grouped-conversation listings, threading, searches, and remaining message operations will be specified in subsequent requirements.
+The requirements are introduced incrementally as their behavior is agreed. `RTRM001` covers folder hierarchy retrieval and status counters; `RTRM002` covers on-demand account storage usage and limit; `RTRM003` covers creation of individual mailboxes and subfolders; `RTRM004` covers folder renaming and movement; `RTRM005` covers folder deletion. `RTRM006` covers filtered, sorted, paginated individual-message listings. `RTRM007` defines grouped-conversation listings incrementally; only reviewed and approved decisions are documented below. Conversation reading, searches, and remaining message operations will be specified in subsequent requirements.
 
 ## Technical requirements
 
@@ -291,8 +291,23 @@ The grouped-conversation listing (`thread_view = true`) has separate threading, 
 
 **Related requirements:** RFRM012–RFRM016, RFRM053–RFRM060, RFRM062, RFRM064; RTGS003–RTGS007; RTCA session/capability-cache rules; RTSN003–RTSN006.
 
+### Grouped conversation listings
+
+#### RTRM007 — Retrieve grouped conversation structure (approved initial decision)
+
+When the effective account preference is `thread_view = true`, Postela must use **`UID THREAD REFS`** on the selected IMAP mailbox to obtain the server-provided conversation structure.
+
+- Retrieve the **complete conversation structure of the selected folder**, including messages that do not match the currently active quick filters. Quick-filter application must not determine the initial membership of a conversation.
+- Return at most one grouped entry for each conversation represented in that folder. A conversation may also be represented independently in the listing of another folder in which it has physical messages.
+- If the IMAP server does **not** advertise `THREAD=REFS`, use the individual-message listing described in `RTRM006`. Preserve the saved `thread_view` preference and inform the client of the unavailable grouped-list capability.
+- The conversation structure **may be cached temporarily per authenticated session** within the separate limits already defined in `RTGS025`, without persisting a message/conversation index. Detailed cache lifecycle and invalidation rules will be specified in later decisions for this requirement.
+
+**Pending decisions within RTRM007:** technical quick-filter application, selection of representative messages, grouped sorting and pagination, conversation counters, and detailed cache behavior. No implementation approach for these pending aspects is approved by this section.
+
+**Related requirements:** RFRM012, RFRM014–RFRM015, RFRM053–RFRM054, RFRM057; RTGS025; RTRM006.
+
 ## Scope boundaries and follow-up documentation
 
 - **Quota information:** `RTRM002` implements only on-demand `STORAGE` usage and limit, beginning with `GETQUOTAROOT INBOX`. A complete per-mailbox quota-root inventory and other quota resources are outside the initial scope.
-- **Folder modifications and listings:** `RTRM003` covers folder creation, `RTRM004` covers renaming and movement, `RTRM005` covers deletion, and `RTRM006` covers individual-message listings. Conversation-grouped listings and remaining message operations will be specified incrementally.
+- **Folder modifications and listings:** `RTRM003` covers folder creation, `RTRM004` covers renaming and movement, `RTRM005` covers deletion, and `RTRM006` covers individual-message listings. `RTRM007` is being defined incrementally for grouped-conversation listings; remaining message operations will follow.
 - **Server authority:** actual mailbox inventory, status values, attributes, and access restrictions come from the IMAP server.
