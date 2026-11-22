@@ -331,9 +331,11 @@ The backend must not track which messages were visually selected in a client's p
 
 A `delete_thread` operation must support deleting the **identified physical messages belonging to a conversation**, including distinct physical copies sharing the same `Message-ID`.
 
-Its scope must respect the account-wide preference `thread_multifolder`: **`false`** affects the selected folder only; **`true`** includes related messages across the account, including `Sent` and `Archive`. The source folder remains relevant when an action originates from a grouped folder listing.
+**When initiated from a grouped folder listing**, `delete_thread` must respect the account-wide `thread_multifolder` preference: **`false`** affects only related messages in the selected folder, while **`true`** includes related messages across the account, including `Sent` and `Archive`. The source folder identifies the grouped-list context.
 
-From an **open conversation**, the client may supply the folder/`UIDVALIDITY`/UID identifiers already returned by `read_thread`; Postela must not repeat conversation discovery solely to perform that action. The backend must apply the effective scope and validate message identifiers before modifying them.
+**When initiated from an open conversation displayed through `read_thread`**, `delete_thread` must apply to **all discovered related physical messages across the account**, independently of `thread_multifolder`, including physically distinct copies sharing a `Message-ID`.
+
+From an **open conversation**, the client may supply the folder/`UIDVALIDITY`/UID identifiers already returned by `read_thread`; Postela must not repeat conversation discovery solely to perform that action. The backend must validate those message identifiers and apply the account-wide open-conversation scope before modifying them.
 
 From a **grouped listing**, the client can supply the representative identifier; Postela must locate the related messages needed for the effective scope before acting. Complete-conversation deletion must **not be restricted to the detailed conversation view**.
 
@@ -469,7 +471,7 @@ This preference replaces the previously considered `thread_actions_scope` settin
 
 `thread_multifolder` must **not** change which conversations appear in a particular folder listing, the scope of quick filters, or the account-wide scope of `read_thread`.
 
-**Exception for an open conversation:** an explicit action to mark the **entire conversation currently opened with `read_thread`** as read or unread must affect **all discovered related physical messages across the account**, independently of `thread_multifolder`. This exception does not change the scope of actions initiated from the grouped folder listing or the scope of other conversation-wide operations.
+**Exception for an open conversation:** explicit actions to **mark the entire open conversation as read or unread, or to delete that conversation**, must affect **all discovered related physical messages across the account**, independently of `thread_multifolder`. This does not change the scope of actions initiated from the grouped folder listing or other conversation-wide operations not expressly covered by this exception.
 
 #### RFRM056 — Aggregated conversation counters and indicators
 
@@ -514,7 +516,7 @@ A grouped folder-list entry must expose its **representative** (folder/`UIDVALID
 
 The client must be able to request a supported thread-wide operation, including deletion, using this representative. Postela must resolve the relevant physical messages within the effective `thread_multifolder` scope before executing it.
 
-An open conversation may instead supply explicit physical-message identifiers already obtained through `read_thread`. This must avoid redundant conversation discovery, respect applicable account policies and message identity validation, and use the effective scope for the particular action: **explicit whole-conversation read/unread actions from the open conversation always cover all discovered related physical messages, regardless of `thread_multifolder`**; other thread-wide actions retain their otherwise applicable scope.
+An open conversation may instead supply explicit physical-message identifiers already obtained through `read_thread`. This must avoid redundant conversation discovery, respect applicable account policies and message identity validation, and use the effective scope for the particular action: **explicit whole-conversation read/unread and deletion actions from the open conversation always cover all discovered related physical messages, regardless of `thread_multifolder`**; other thread-wide actions retain their otherwise applicable scope.
 
 #### RFRM060 — Group-aware sorting and pagination
 
