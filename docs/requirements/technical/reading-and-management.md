@@ -508,7 +508,17 @@ The distinct `read_thread` operation must open a complete discoverable conversat
 3. After discovery has finished, order **only the discovered related messages**, across all their folders, by the parsed `Date` header in ascending chronological order (oldest first), accounting for time-zone offsets. If `Date` is missing or cannot be parsed, fall back to `INTERNALDATE`.
 4. Preserve **all distinct physical copies** of messages in the returned result, even when they have the same `Message-ID`. Each entry retains its source folder, `UIDVALIDITY`, and UID. Do not deduplicate by `Message-ID`.
 
-**Still pending within RTRM009:** message-content retrieval and the selected-message-only read-state change.
+**Retrieve conversation message contents without duplicating `read_message`:**
+
+1. After identifying and chronologically ordering the related physical messages, reuse the already-approved `RTRM008` rules for each message's metadata, MIME structure, available HTML/plain-text bodies, HTML sanitization, and referenced CID images. `read_thread` must not introduce an independent message-decoding or HTML-security implementation.
+2. Group retrievals **by source IMAP folder**, batching `UID FETCH` commands for sets of related UIDs when compatible with the required attributes and MIME sections. Do not issue one server request per message when several messages in the same selected folder can be retrieved together.
+3. Retrieve only the message-body MIME sections required for viewing. Do not fetch the full raw message through `BODY.PEEK[]` or proactively download other downloadable attachment contents. Return attachment metadata so individual attachments can be requested separately using `RTRM008`.
+4. Include each physical message's own folder, `UIDVALIDITY`, UID, current IMAP flags, and MIME metadata in the returned result, preserving distinct copies even when `Message-ID` values match.
+5. Return the discovered messages **in the approved chronological order, oldest first**, independently of their source folders or the selected entry-point message.
+6. Sanitize the HTML and apply embedded-CID and externally hosted resource restrictions **separately for each message**. A conversation can contain multiple senders; an authorization applicable to one sender must not implicitly authorize remote content in another sender's message.
+7. Body retrieval must not implicitly alter `\Seen`: use the `BODY.PEEK` behavior agreed in `RTRM008`. Automatic read-state changes are handled separately and must affect only the explicitly selected entry-point message under the next approved decision.
+
+**Still pending within RTRM009:** selected-message-only automatic read-state change.
 
 **Related requirements:** RFRM017–RFRM021, RFRM053–RFRM055, RFRM062; RTRM008.
 
