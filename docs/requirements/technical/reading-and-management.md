@@ -782,7 +782,14 @@ This completes the initially approved technical behavior for `RTRM009`; any addi
 3. Preserve grouped semantics when a condition is itself composite, such as an all-recipients match over `TO`, `CC`, and `BCC`. Validate the requested criteria and structure and construct IMAP commands safely rather than passing arbitrary client-provided IMAP syntax through to the server.
 4. Leave **the frontend search interface and the concrete client-to-backend request format unspecified** until a separate decision. The backend must remain capable of expressing the approved nested boolean logic without requiring any particular transport schema or UI design in this requirement.
 
-**Still pending within RTRM014:** concrete search request format, attachment-presence and size criteria, combined result sorting and global pagination, and related efficiency/fallback decisions.
+**Message-size search criteria:**
+
+1. Support strictly **larger than** and strictly **smaller than** byte thresholds using the standard IMAP `LARGER <n>` and `SMALLER <n>` search keys, respectively.
+2. Interpret `<n>` as the **entire message size in bytes** (`RFC822.SIZE`), not the size of its attachments or rendered body.
+3. Accept only non-negative integer byte values, validating input before generating IMAP commands. The client is responsible for any user-friendly display or unit conversion.
+4. Allow size conditions to participate in the already approved nested `AND`/`OR`/`NOT` search expressions, and evaluate them server-side via `UID SEARCH` without downloading messages to calculate size.
+
+**Still pending within RTRM014:** concrete search request format, attachment-presence criteria, combined result sorting and global pagination, and related efficiency/fallback decisions.
 
 **Related requirements:** RFRM044–RFRM050, RFRM061–RFRM062; RTRM001, RTRM006–RTRM007; RTSN.
 
