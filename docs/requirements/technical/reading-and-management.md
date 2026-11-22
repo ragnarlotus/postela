@@ -10,7 +10,7 @@
 
 This document specifies the technical implementation of mailbox reading and management through IMAP, following the functional requirements in `RFRM`.
 
-The requirements are introduced incrementally as their behavior is agreed. `RTRM001` covers folder hierarchy retrieval and status counters; `RTRM002` covers on-demand account storage usage and limit; `RTRM003` covers creation of individual mailboxes and subfolders; `RTRM004` covers folder renaming and movement; `RTRM005` covers folder deletion. `RTRM006` covers filtered, sorted, paginated individual-message listings. `RTRM007` covers grouped-conversation listings and their session cache. `RTRM008` covers individual-message reading, headers, and downloads. `RTRM009` covers conversation reading. `RTRM010` covers explicit IMAP flag updates, bulk read-state actions, and reuse of the established synchronization mechanisms. `RTRM011` covers message moves, archive/unarchive reuse, and safe handling of confirmed, partial, and uncertain outcomes. Searches and remaining message operations will be specified in subsequent requirements.
+The requirements are introduced incrementally as their behavior is agreed. `RTRM001` covers folder hierarchy retrieval and status counters; `RTRM002` covers on-demand account storage usage and limit; `RTRM003` covers creation of individual mailboxes and subfolders; `RTRM004` covers folder renaming and movement; `RTRM005` covers folder deletion. `RTRM006` covers filtered, sorted, paginated individual-message listings. `RTRM007` covers grouped-conversation listings and their session cache. `RTRM008` covers individual-message reading, headers, and downloads. `RTRM009` covers conversation reading. `RTRM010` covers explicit IMAP flag updates, bulk read-state actions, and reuse of the established synchronization mechanisms. `RTRM011` covers message moves, archive/unarchive reuse, and safe handling of confirmed, partial, and uncertain outcomes. `RTRM012` defines message deletion incrementally, recording only reviewed and approved decisions below. Searches and remaining message operations will be specified in subsequent requirements.
 
 ## Technical requirements
 
@@ -649,6 +649,23 @@ This completes the initially approved technical behavior for `RTRM009`; any addi
 **RTRM011 is complete for the approved scope.** Further implementation details may be specified separately if needed.
 
 **Related requirements:** RFRM033–RFRM034, RFRM039, RFRM062; RTRM007; RTSN.
+
+### Message deletion
+
+#### RTRM012 — Delete messages under the account deletion policy
+
+**Delete selected messages when `delete_to_trash = true`:**
+
+1. Provide the `delete_messages` operation accepting a **source mailbox, its `UIDVALIDITY`, and the client-selected UIDs**. Validate these message identities before acting.
+2. Resolve the account's effective `delete_to_trash` preference using the existing `RTGS022` rules. When its value is **`true`**, deletion of selected messages outside the Trash mailbox must be implemented by moving them into Trash, not permanently deleting them.
+3. Resolve the effective special-folder role **`trash`** through the existing `RTGS` priority: explicit user preference, administrator-defined mapping, then IMAP `SPECIAL-USE`. Validate that the destination mailbox exists and is eligible to store messages.
+4. **Reuse the generic `move_messages` behavior from `RTRM011`** with the resolved Trash mailbox as destination, including its `UID MOVE` primary mechanism, approved `UIDPLUS` fallback, message-identity checks, and partial/uncertain-result handling. Do not download message bodies or attachments.
+5. If the Trash mailbox cannot be resolved or is unavailable or ineligible, **fail the operation without permanently deleting any selected messages**. Do not create a replacement folder or silently choose another destination.
+6. Synchronize the affected folder listings and counters through the approved IMAP notification mechanism, and invalidate affected conversation-membership caches after confirmed membership changes.
+
+**Still pending within RTRM012:** permanent deletion when `delete_to_trash = false` or when messages are already in Trash, empty-folder deletion, conversation deletion, and any further deletion decisions.
+
+**Related requirements:** RFRM035–RFRM039, RFRM062; RTGS011–RTGS015, RTGS022; RTRM007, RTRM011; RTSN.
 
 ## Scope boundaries and follow-up documentation
 
