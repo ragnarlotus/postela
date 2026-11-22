@@ -727,7 +727,13 @@ This completes the initially approved technical behavior for `RTRM009`; any addi
 6. Group all eligible message identities by source mailbox; validate each folder's `UIDVALIDITY` and permissions, and reuse the approved `RTRM011` generic message-move mechanism to move them into `Junk` (`UID MOVE` or the approved `UIDPLUS` fallback), without downloading bodies or attachments.
 7. Apply the existing partial/uncertain-result rules and synchronize actual affected folder lists, counters, and cached conversation membership. Postela does not itself train or administer a spam-classification engine as a result of this operation; any server-side learning triggered by movement to Junk belongs to the mail server.
 
-**Still pending within RTRM013:** marking messages as not spam, and handling cases where the special Sent mailbox cannot be resolved for whole-conversation classification.
+**Unavailable or ambiguous `Sent` mapping during whole-conversation spam classification:**
+
+1. Before any **whole-conversation** spam operation, resolve and validate the effective special `sent` mailbox through `RTGS`. If the mapping is missing, ambiguous, or refers to an unavailable mailbox, **reject the whole-conversation classification without moving any messages**.
+2. Return an identifiable error stating that the account's special `Sent` folder must be configured or made available. Never guess a Sent mailbox from its name or a message's `From` header.
+3. This restriction applies **only to whole-conversation spam classification**. Continue to allow explicit spam classification of individually selected physical messages, subject to the normal `Junk` destination and identity validations.
+
+**Still pending within RTRM013:** marking messages as not spam.
 
 **Related requirements:** RFRM040–RFRM043, RFRM055, RFRM059, RFRM062; RTGS011–RTGS016; RTRM009, RTRM011; RTSN.
 
