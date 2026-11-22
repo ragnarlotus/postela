@@ -689,7 +689,17 @@ This completes the initially approved technical behavior for `RTRM009`; any addi
 4. Group UIDs into suitable batches and **do not fetch message bodies or attachments**. Do not rely on the client's current message selection or require the full conversation to have been opened.
 5. Synchronize the affected folder lists, counters, and cached conversation membership after confirmed changes. Report partial failures or uncertain outcomes without automatically repeating uncertain destructive operations.
 
-**Still pending within RTRM012:** grouped-list conversation deletion with `thread_multifolder = true`, deletion initiated from an open conversation, and any further deletion decisions.
+**Delete a conversation from a grouped folder listing when `thread_multifolder = true`:**
+
+1. Accept the grouped-list representative's **source folder, `UIDVALIDITY`, and UID**, and validate the identity before discovering related messages.
+2. Discover related messages **across all accessible account mailboxes**, using the approved `RTRM009` identifier-based cross-folder discovery mechanism without downloading bodies or attachments.
+3. Include every discovered physical message identity, **even where multiple copies share the same `Message-ID`**. Group the resulting identities by source folder and validate each folder's `UIDVALIDITY` before modifying any message.
+4. Apply the effective `delete_to_trash` policy **per source mailbox**: move eligible messages to the resolved Trash mailbox when the policy requires it; permanently delete messages already located in Trash or all selected messages when `delete_to_trash = false`. Reuse the approved `RTRM011` and `RTRM012` move and permanent-deletion mechanisms.
+5. Batch IMAP operations by mailbox and UID set where practical; do not download message bodies or attachments.
+6. Treat this cross-folder action as **non-atomic**. Return known per-message successes, failures, and uncertain outcomes where available; do not automatically repeat uncertain destructive operations.
+7. Synchronize each affected mailbox's listings and counters and invalidate affected conversation-membership caches according to confirmed changes.
+
+**Still pending within RTRM012:** deletion initiated from an open conversation and any further deletion decisions.
 
 **Related requirements:** RFRM035–RFRM039, RFRM062; RTGS011–RTGS015, RTGS022; RTRM007, RTRM011; RTSN.
 
