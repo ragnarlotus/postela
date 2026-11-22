@@ -397,7 +397,7 @@ The `read_message` operation must retrieve **only the message explicitly request
 3. Decode each retrieved part's `Content-Transfer-Encoding` and convert text into UTF-8 when its source character set is known.
 4. Return the available HTML and/or plain-text representation to the client. Respect the effective account preference `RFGS010` (HTML by default) for the preferred display format; if that representation is absent, use the available safe alternative under `RFGS011`.
 5. Use `BODY.PEEK` rather than a non-PEEK body fetch so that retrieving message content **does not implicitly set `\\Seen`**. Any automatic change to read state must occur through the separate, preference-controlled `mark_as_read` behavior.
-6. HTML sanitization and the authorization/delivery of remote or CID-embedded resources are separate technical decisions; choosing HTML does not grant permission to load unsafe active or remote content.
+6. Sanitization of HTML before returning it to the client is defined below. Authorization/delivery of remote or CID-embedded resources is specified separately; choosing HTML does not grant permission to load unsafe active or remote content.
 
 **Automatic marking as read (`mark_as_read`):**
 
@@ -408,7 +408,16 @@ The `read_message` operation must retrieve **only the message explicitly request
 5. Reflect a successfully updated read state in the operation result and propagate the change through the existing account-authorized session notifications and IMAP synchronization mechanism.
 6. If the flag update fails, **return the message content already retrieved**, report the flag-update error separately, and do not claim the message was marked as read. Do not treat retrieving the content and changing its read flag as an inseparable operation.
 
-**Still pending within RTRM008:** HTML sanitization and remote/CID resources, complete original headers, and attachment retrieval.
+**HTML sanitization and client-side resource authorization:**
+
+1. Sanitize decoded HTML email **in the backend before returning it to clients**, without modifying the original RFC 5322/MIME message stored on the IMAP server.
+2. Remove executable or unsafe elements, including `<script>`, `<iframe>`, and `<object>`, and remove JavaScript event-handler attributes such as `onclick` and `onload`.
+3. Reject dangerous URL schemes, including `javascript:`, and prevent HTML attributes, styles, or embedded content from executing scripts or bypassing the email-content security restrictions.
+4. Preserve useful visual formatting where safe, including tables, hyperlinks, images, colors, and supported styles. Visual fidelity must not override the safety restrictions.
+5. The frontend controls whether externally hosted resources are loaded, following the existing default-blocking and trusted-sender policy. **Sanitization must not itself authorize remote resource loading**, and trusting a sender must not authorize active content.
+6. Preserve access to the unmodified original message for the separate `.eml` download capability; sanitization applies only to the display representation.
+
+**Still pending within RTRM008:** remote-resource and embedded-CID delivery details, complete original headers, and attachment retrieval.
 
 **Related requirements:** RFRM017, RFRM018, RFRM024, RFRM026–RFRM027, RFRM062; RFGS010–RFGS012; RTCA session and connection rules.
 
