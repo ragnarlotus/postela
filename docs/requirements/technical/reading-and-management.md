@@ -544,7 +544,17 @@ This completes the initially approved technical behavior for `RTRM009`; any addi
 5. Modify **only `\Seen`**, preserving all unrelated IMAP flags and custom keywords, including `\Answered`, `\Flagged`, and `\Draft`.
 6. Report permission, identity, missing-message, or other IMAP failures without claiming that failed operations succeeded. Notify the other authorized sessions through the existing IMAP synchronization mechanism so affected individual message states, folder unread counters, and conversation unread counters are refreshed.
 
-**Still pending within RTRM010:** explicit `\Flagged` changes, whole-folder mark-as-read, group-wide read/unread changes, and any additional flag synchronization details.
+**Flag or unflag one or multiple messages (`\Flagged`):**
+
+1. Accept one or multiple message identities containing **folder, `UIDVALIDITY`, and UID** and the explicit target flagged state.
+2. Group target messages by mailbox and validate the corresponding `UIDVALIDITY` and server flag-modification permissions before applying updates.
+3. To flag messages, execute `UID STORE +FLAGS.SILENT (\Flagged)`; to remove the flag, execute `UID STORE -FLAGS.SILENT (\Flagged)`.
+4. Batch multiple UIDs belonging to the same mailbox into a single UID set where possible; reuse the flag-update mechanism already established for `\Seen` rather than duplicating its implementation.
+5. Modify **only `\Flagged`**. Preserve `\Seen`, `\Answered`, `\Draft`, other IMAP flags, and custom keywords; this explicit operation is independent of the `mark_as_read` preference and must not change read state.
+6. Respect IMAP server permissions and report failed or partial operations accurately. Notify other authorized sessions and refresh affected message flags and `thread.flagged` counters through the existing synchronization mechanism.
+7. A change to `\Flagged` must not invalidate or alter the cached conversation-membership structure, although affected flag-derived counters or views must be refreshed.
+
+**Still pending within RTRM010:** whole-folder mark-as-read, group-wide read/unread changes, and any additional flag synchronization details.
 
 **Related requirements:** RFRM028–RFRM032, RFRM058, RFRM062; RTRM008–RTRM009; RTSN.
 
