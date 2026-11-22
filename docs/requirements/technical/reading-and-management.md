@@ -10,7 +10,7 @@
 
 This document specifies the technical implementation of mailbox reading and management through IMAP, following the functional requirements in `RFRM`.
 
-The requirements are introduced incrementally as their behavior is agreed. `RTRM001` covers folder hierarchy retrieval and status counters; `RTRM002` covers on-demand account storage usage and limit; `RTRM003` covers creation of individual mailboxes and subfolders; `RTRM004` covers folder renaming and movement; `RTRM005` covers folder deletion. `RTRM006` covers filtered, sorted, paginated individual-message listings. `RTRM007` covers grouped-conversation listings and their session cache. `RTRM008` defines individual-message reading incrementally, recording only decisions reviewed and approved below. Conversation reading, searches, and remaining message operations will be specified in subsequent requirements.
+The requirements are introduced incrementally as their behavior is agreed. `RTRM001` covers folder hierarchy retrieval and status counters; `RTRM002` covers on-demand account storage usage and limit; `RTRM003` covers creation of individual mailboxes and subfolders; `RTRM004` covers folder renaming and movement; `RTRM005` covers folder deletion. `RTRM006` covers filtered, sorted, paginated individual-message listings. `RTRM007` covers grouped-conversation listings and their session cache. `RTRM008` covers individual-message reading, headers, and downloads. `RTRM009` defines conversation reading incrementally, recording only reviewed and approved decisions below. Searches and remaining message operations will be specified in subsequent requirements.
 
 ## Technical requirements
 
@@ -477,6 +477,23 @@ The `read_message` operation must retrieve **only the message explicitly request
 This completes the approved initial technical decisions for `RTRM008`; implementation details not yet specified (such as an exact transport framing for large binary transfers) remain subject to later validation.
 
 **Related requirements:** RFRM017–RFRM018, RFRM022–RFRM027, RFRM062; RFGS010–RFGS012; RTCA session and connection rules.
+
+### Conversation reading
+
+#### RTRM009 — Open a conversation from a selected message
+
+The distinct `read_thread` operation must open a complete discoverable conversation from an **explicitly selected message**, rather than changing the behavior of `read_message`:
+
+1. Require the selected message's **folder, `UIDVALIDITY`, and UID** as the entry-point identity. Open the specified mailbox and validate its current `UIDVALIDITY` and the existence of that UID before determining conversation membership.
+2. Require the connected IMAP server to advertise **`THREAD=REFS`** for `read_thread` in the initial release. If that capability is unavailable, inform the client that conversation reading is unsupported and make the separate `read_message` operation available; do not overwrite or change the saved `thread_view` preference.
+3. Use the identified message only as the **starting point** for discovering its conversation. It is not a permanent conversation root, and discovery must not depend on the continued presence or original folder of any arbitrarily chosen root message.
+4. Search for related messages across **all accessible folders of the authenticated account**, including `Sent`, `Archive`, and other available mailboxes, not just the selected folder.
+5. The scope of `read_thread` is **independent of `thread_multifolder`**. That preference controls grouped-list counters and group-wide actions, not the scope of conversation reading.
+6. The discoverable set of related physical messages must not depend on which existing member of that conversation was selected as the entry point. The detailed IMAP cross-folder discovery strategy is subject to a separate approved decision.
+
+**Still pending within RTRM009:** technical cross-folder membership discovery, message ordering and distinct physical copies, message-content retrieval, and the selected-message-only read-state change.
+
+**Related requirements:** RFRM017–RFRM021, RFRM053–RFRM055, RFRM062; RTRM008.
 
 ## Scope boundaries and follow-up documentation
 
