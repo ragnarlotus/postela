@@ -431,11 +431,20 @@ The `read_message` operation must retrieve **only the message explicitly request
 1. During backend HTML sanitization, identify externally hosted resources whose references may trigger automatic browser requests, including image sources, CSS background resources, and `srcset` entries.
 2. Replace these fetch-triggering references with **inert placeholders**, retaining the original URLs as associated resource metadata. The HTML initially returned to the frontend must not contain active externally hosted references that could be loaded automatically.
 3. The frontend initially renders the sanitized message **without activating remote references**, so displaying the message cannot accidentally initiate remote-resource downloads.
-4. Only when the sender satisfies the already-approved trusted-sender authorization policy may the frontend restore the **specifically allowed remote references** for browser loading. Authenticity verification and the precise authorization decision are to be specified in a subsequent separately approved decision.
+4. Only when the sender satisfies the **trusted-sender and DMARC authorization conditions specified below**, or when the user explicitly authorizes resources for that message, may the frontend restore the **specifically allowed remote references** for browser loading.
 5. Inline CID images already embedded as validated `data:image/...;base64,...` URLs remain available immediately and are independent of the remote-sender trust decision.
 6. Ordinary clickable links such as `<a href="https://...">` may remain available after sanitization because merely displaying them does not trigger automatic loading. Active content and dangerous URL schemes remain prohibited regardless of sender trust.
 
-**Still pending within RTRM008:** trusted-sender authenticity verification/authorization, complete original headers, and attachment retrieval.
+**Trusted-sender authorization for remote resources:**
+
+1. Automatically authorize otherwise permitted remote resources only when the message's `From` email address matches an **exact address** in the authenticated account's trusted-sender list. A matching domain alone is insufficient.
+2. In addition to the address match, require a **reliable DMARC `pass` result aligned with the `From` domain** when the receiving mail infrastructure provides trustworthy authentication results. A matching `From` address without such verification must not authorize automatic remote-content loading.
+3. Do **not** trust an `Authentication-Results` header merely because it appears in the message: accept only results attributable to an identified, trusted receiving/authentication system. The procedure for establishing which results are trustworthy must be separately specified before implementation.
+4. If the address is unlisted, authentication fails, or the DMARC result cannot be reliably verified, **keep remote resources blocked automatically**. A listed address is not proof that the individual sender personally authored the message; DMARC authenticates aligned domains.
+5. When automatic authorization cannot be established, allow the user to explicitly authorize remote content **for the currently displayed message only**, without adding or changing any trusted-sender entry.
+6. Whether loading is automatic or manually authorized, only restore remote URLs otherwise permitted by the approved sanitization and resource-blocking rules. Never allow scripts, active content, or unsafe URL schemes.
+
+**Still pending within RTRM008:** how to establish trustworthy mail-server authentication results, complete original headers, and attachment retrieval.
 
 **Related requirements:** RFRM017, RFRM018, RFRM024, RFRM026–RFRM027, RFRM062; RFGS010–RFGS012; RTCA session and connection rules.
 
