@@ -390,9 +390,18 @@ The `read_message` operation must retrieve **only the message explicitly request
 3. Use `BODYSTRUCTURE` to determine the message's MIME hierarchy, available content types, attachment filenames and sizes where provided, and embedded-part `Content-ID` values. Expose metadata only when the underlying message provides it; do not invent missing names or sizes.
 4. Do not download the contents of every attachment in order to construct the attachment listing. The exact body-section retrieval and individual-attachment download rules will be specified separately.
 
-**Still pending within RTRM008:** retrieval and decoding of HTML/plain-text message bodies, complete original headers, attachment content, embedded-resource delivery, and the `mark_as_read` behavior.
+**HTML and plain-text MIME body retrieval:**
 
-**Related requirements:** RFRM017, RFRM018, RFRM024, RFRM062; RTCA session and connection rules.
+1. Use the already-fetched `BODYSTRUCTURE` hierarchy to identify available `text/html` and `text/plain` message body parts, respecting MIME nesting and `multipart/alternative` relationships.
+2. Retrieve **only the required message-body sections** through targeted `UID FETCH BODY.PEEK[section]` requests. Do not fetch full downloadable attachments merely to render the message body.
+3. Decode each retrieved part's `Content-Transfer-Encoding` and convert text into UTF-8 when its source character set is known.
+4. Return the available HTML and/or plain-text representation to the client. Respect the effective account preference `RFGS010` (HTML by default) for the preferred display format; if that representation is absent, use the available safe alternative under `RFGS011`.
+5. Use `BODY.PEEK` rather than a non-PEEK body fetch so that retrieving message content **does not implicitly set `\\Seen`**. Any automatic change to read state must occur through the separate, preference-controlled `mark_as_read` behavior.
+6. HTML sanitization and the authorization/delivery of remote or CID-embedded resources are separate technical decisions; choosing HTML does not grant permission to load unsafe active or remote content.
+
+**Still pending within RTRM008:** explicit handling of `mark_as_read`, HTML sanitization and remote/CID resources, complete original headers, and attachment retrieval.
+
+**Related requirements:** RFRM017, RFRM018, RFRM024, RFRM026–RFRM027, RFRM062; RFGS010–RFGS012; RTCA session and connection rules.
 
 ## Scope boundaries and follow-up documentation
 
