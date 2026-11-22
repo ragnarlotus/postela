@@ -518,7 +518,16 @@ The distinct `read_thread` operation must open a complete discoverable conversat
 6. Sanitize the HTML and apply embedded-CID and externally hosted resource restrictions **separately for each message**. A conversation can contain multiple senders; an authorization applicable to one sender must not implicitly authorize remote content in another sender's message.
 7. Body retrieval must not implicitly alter `\Seen`: use the `BODY.PEEK` behavior agreed in `RTRM008`. Automatic read-state changes are handled separately and must affect only the explicitly selected entry-point message under the next approved decision.
 
-**Still pending within RTRM009:** selected-message-only automatic read-state change.
+**Automatic read state when opening a conversation:**
+
+1. Retrieve all discovered conversation message bodies using `BODY.PEEK`, as already approved for `RTRM008`; do not implicitly alter their IMAP read flags.
+2. Identify the **explicitly selected entry-point message** using its folder, `UIDVALIDITY`, and UID; this is the only message eligible for automatic read-state modification.
+3. Check the effective `mark_as_read` preference and that message's current `\Seen` flag. If enabled and the selected message is unread, issue `UID STORE +FLAGS.SILENT (\Seen)` **only for its UID** in its original mailbox, preserving every other flag and reusing the safe identity checks already defined in `RTRM008`.
+4. If `mark_as_read` is disabled or the selected message is already read, do not change flags. **Never mark other related messages as read** just because `read_thread` returned their contents.
+5. Reflect a successful flag change in the result and distribute it through the approved account-session synchronization mechanism.
+6. If updating `\Seen` fails, still return the conversation contents already retrieved and report the flag-update failure separately, without claiming a successful read-state change.
+
+This completes the initially approved technical behavior for `RTRM009`; any additional implementation decisions remain subject to separate validation.
 
 **Related requirements:** RFRM017–RFRM021, RFRM053–RFRM055, RFRM062; RTRM008.
 
