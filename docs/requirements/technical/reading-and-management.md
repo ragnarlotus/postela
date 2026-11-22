@@ -464,7 +464,17 @@ The `read_message` operation must retrieve **only the message explicitly request
 5. Allow the client to choose a safe download filename with the `.eml` extension. Do not store a persistent copy in SQLite or persistent temporary files.
 6. Keep this operation independent of `read_message`, so simply opening a message does not require fetching the entire raw message and all of its attachments.
 
-**Still pending within RTRM008:** selective individual attachment download.
+**Download one selected attachment on demand:**
+
+1. During `read_message`, use the retrieved `BODYSTRUCTURE` to identify downloadable attachment parts and provide the client with their MIME section identifiers and available attachment metadata.
+2. The client requests a specific attachment by supplying its **folder, `UIDVALIDITY`, UID, and MIME section identifier**.
+3. Select the mailbox, validate its current `UIDVALIDITY` against the supplied identity, confirm that the message still exists, and **verify against its current MIME structure** that the requested section identifies a downloadable attachment of that message. Reject missing, invalid, or non-attachment sections.
+4. Retrieve **only that MIME part** using a UID-targeted `UID FETCH BODY.PEEK[section]`. Do not fetch other attachments or the entire original message.
+5. Decode the part's `Content-Transfer-Encoding`, including Base64 or quoted-printable when applicable, to recover the attachment's original file bytes.
+6. Return the attachment bytes with its validated MIME type and its original filename where safely usable; sanitize filenames to prevent unsafe paths or names. The frontend handles download presentation and optional preview.
+7. This operation must not modify `\Seen` or apply `mark_as_read`. Do not store attachments persistently in SQLite or on disk; prefer incremental transfer for large files when the chosen transport supports it.
+
+This completes the approved initial technical decisions for `RTRM008`; implementation details not yet specified (such as an exact transport framing for large binary transfers) remain subject to later validation.
 
 **Related requirements:** RFRM017–RFRM018, RFRM022–RFRM027, RFRM062; RFGS010–RFGS012; RTCA session and connection rules.
 
