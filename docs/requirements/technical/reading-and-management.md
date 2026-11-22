@@ -399,7 +399,16 @@ The `read_message` operation must retrieve **only the message explicitly request
 5. Use `BODY.PEEK` rather than a non-PEEK body fetch so that retrieving message content **does not implicitly set `\\Seen`**. Any automatic change to read state must occur through the separate, preference-controlled `mark_as_read` behavior.
 6. HTML sanitization and the authorization/delivery of remote or CID-embedded resources are separate technical decisions; choosing HTML does not grant permission to load unsafe active or remote content.
 
-**Still pending within RTRM008:** explicit handling of `mark_as_read`, HTML sanitization and remote/CID resources, complete original headers, and attachment retrieval.
+**Automatic marking as read (`mark_as_read`):**
+
+1. Retrieve the requested message content using `BODY.PEEK`, preventing message-body retrieval from implicitly changing the IMAP `\\Seen` flag.
+2. Check the effective account-wide `mark_as_read` preference (enabled by default under `RFGS007`) and the message's current `\\Seen` state obtained from `FLAGS`.
+3. If `mark_as_read = true` and the selected message is unread, explicitly set only its read flag using `UID STORE +FLAGS.SILENT (\\Seen)`, targeting the same UID after the required identity check. Preserve every other message flag.
+4. If `mark_as_read = false` or the selected message is already read, do not perform a flag change.
+5. Reflect a successfully updated read state in the operation result and propagate the change through the existing account-authorized session notifications and IMAP synchronization mechanism.
+6. If the flag update fails, **return the message content already retrieved**, report the flag-update error separately, and do not claim the message was marked as read. Do not treat retrieving the content and changing its read flag as an inseparable operation.
+
+**Still pending within RTRM008:** HTML sanitization and remote/CID resources, complete original headers, and attachment retrieval.
 
 **Related requirements:** RFRM017, RFRM018, RFRM024, RFRM026–RFRM027, RFRM062; RFGS010–RFGS012; RTCA session and connection rules.
 
