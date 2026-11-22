@@ -671,7 +671,17 @@ This completes the initially approved technical behavior for `RTRM009`; any addi
 4. Use `UID STORE +FLAGS.SILENT (\Deleted)` to mark **only the selected UIDs** for deletion, followed by `UID EXPUNGE` with **the same UID set** to permanently expunge only the selected messages.
 5. Synchronize the affected folder's message listing, counters, and conversation-membership cache after confirmed deletions. Report partial or uncertain outcomes accurately; do not automatically replay uncertain destructive commands.
 
-**Still pending within RTRM012:** empty-folder deletion, conversation deletion, and any further deletion decisions.
+**Empty a selected folder without explicit message selection:**
+
+1. Provide a separate `empty_folder` operation accepting **only the target mailbox**; do not require client-supplied message UIDs or use the selected items from a paginated client listing.
+2. Select the target IMAP mailbox and execute **`UID SEARCH ALL`** to obtain the UIDs of messages currently present **in that mailbox only**, without traversing its subfolders.
+3. If the result is empty, complete successfully without issuing message-modification commands.
+4. Apply the effective deletion policy to this set of UIDs: when `delete_to_trash = true`, move messages to the resolved Trash mailbox using the approved `RTRM011` mechanism; when `delete_to_trash = false`, permanently delete them using the approved `UIDPLUS`-based procedure. **Emptying Trash always uses permanent deletion**, regardless of `delete_to_trash`.
+5. If the policy requires moving messages into Trash and that destination is unavailable or ineligible, **fail without substituting permanent deletion**.
+6. Use UID sets and batches when appropriate; do not retrieve message bodies or attachments. Messages arriving after the `UID SEARCH ALL` result are **not automatically added** to this operation.
+7. Synchronize the affected mailbox listings, counters, and conversation-membership caches according to confirmed server changes. Report partial or uncertain results accurately, and do not automatically retry an uncertain destructive operation.
+
+**Still pending within RTRM012:** conversation deletion and any further deletion decisions.
 
 **Related requirements:** RFRM035–RFRM039, RFRM062; RTGS011–RTGS015, RTGS022; RTRM007, RTRM011; RTSN.
 
