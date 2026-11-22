@@ -455,9 +455,18 @@ The `read_message` operation must retrieve **only the message explicitly request
 5. Do not download the message body or attachments. `read_headers` must never alter `\\Seen`, regardless of the account's `mark_as_read` preference.
 6. The client may display or copy the returned headers **as text**, never interpreting them as active HTML.
 
-**Still pending within RTRM008:** raw original-message downloads and individual attachment retrieval.
+**Download the unmodified original message (`.eml`):**
 
-**Related requirements:** RFRM017, RFRM018, RFRM023–RFRM027, RFRM062; RFGS010–RFGS012; RTCA session and connection rules.
+1. Provide a separate original-message download operation that accepts the message's **folder, `UIDVALIDITY`, and UID**, and validates the selected mailbox's current `UIDVALIDITY` before accessing the UID, using the approved missing-message error behavior.
+2. Retrieve only that message's **complete original RFC 5322/MIME representation**, including every header, MIME boundary, body part, and attachment, using a UID-targeted `UID FETCH BODY.PEEK[]`.
+3. Deliver the original bytes to the requesting client **without modifying** headers, MIME encoding, boundaries, or contents. Prefer incremental/streamed transfer when supported by the selected client transport, so large messages need not be retained fully in application memory; the transport-level transfer mechanism will be specified separately if needed.
+4. `BODY.PEEK[]` must not implicitly mark the message as read, and this download must **not** apply the `mark_as_read` preference or otherwise change `\\Seen`.
+5. Allow the client to choose a safe download filename with the `.eml` extension. Do not store a persistent copy in SQLite or persistent temporary files.
+6. Keep this operation independent of `read_message`, so simply opening a message does not require fetching the entire raw message and all of its attachments.
+
+**Still pending within RTRM008:** selective individual attachment download.
+
+**Related requirements:** RFRM017–RFRM018, RFRM022–RFRM027, RFRM062; RFGS010–RFGS012; RTCA session and connection rules.
 
 ## Scope boundaries and follow-up documentation
 
