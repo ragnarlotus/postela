@@ -10,7 +10,7 @@
 
 This document specifies the technical implementation of mailbox reading and management through IMAP, following the functional requirements in `RFRM`.
 
-The requirements are introduced incrementally as their behavior is agreed. `RTRM001` covers folder hierarchy retrieval and status counters; `RTRM002` covers on-demand account storage usage and limit; `RTRM003` covers creation of individual mailboxes and subfolders; `RTRM004` covers folder renaming and movement; `RTRM005` covers folder deletion. `RTRM006` covers filtered, sorted, paginated individual-message listings. `RTRM007` covers grouped-conversation listings and their session cache. `RTRM008` covers individual-message reading, headers, and downloads. `RTRM009` covers conversation reading. `RTRM010` covers explicit IMAP flag updates, bulk read-state actions, and reuse of the established synchronization mechanisms. `RTRM011` defines message moves incrementally, recording only reviewed and approved decisions below. Searches and remaining message operations will be specified in subsequent requirements.
+The requirements are introduced incrementally as their behavior is agreed. `RTRM001` covers folder hierarchy retrieval and status counters; `RTRM002` covers on-demand account storage usage and limit; `RTRM003` covers creation of individual mailboxes and subfolders; `RTRM004` covers folder renaming and movement; `RTRM005` covers folder deletion. `RTRM006` covers filtered, sorted, paginated individual-message listings. `RTRM007` covers grouped-conversation listings and their session cache. `RTRM008` covers individual-message reading, headers, and downloads. `RTRM009` covers conversation reading. `RTRM010` covers explicit IMAP flag updates, bulk read-state actions, and reuse of the established synchronization mechanisms. `RTRM011` covers message moves, archive/unarchive reuse, and safe handling of confirmed, partial, and uncertain outcomes. Searches and remaining message operations will be specified in subsequent requirements.
 
 ## Technical requirements
 
@@ -636,7 +636,17 @@ This completes the initially approved technical behavior for `RTRM009`; any addi
 4. Apply the already-approved `RTRM011` identity validation, destination validation, `UID MOVE` primary mechanism, and `UIDPLUS` fallback equally to archive and unarchive operations.
 5. If the archive role cannot be resolved to an **available, eligible mailbox**, reject the archive request with an identifiable error; **do not** create a mailbox, silently select a different destination, or assume a folder named `Archive` exists.
 
-**Still pending within RTRM011:** detailed move-result and uncertain-outcome handling, and any further move-operation decisions.
+**Move results, partial failures, and uncertain outcomes:**
+
+1. If the IMAP server **confirms completion** of the move, report the operation as successfully completed.
+2. For a batch of messages, distinguish confirmed successful moves from failed ones **when the server provides enough evidence to identify them individually**; do not invent per-message success or failure where only a batch-level outcome is known.
+3. If the connection drops before the server's completion response arrives, treat the outcome as **unknown**, not as a confirmed failure or success.
+4. Refresh and inspect the actual server state of both source and destination mailboxes to determine which changes can be verified. Disappearance from the source alone **does not prove** that a message arrived in the destination.
+5. When the state of one or more selected messages cannot be established reliably, return an explicit **uncertain outcome** for those messages rather than claiming success or failure.
+6. **Never automatically repeat a move whose outcome is uncertain**, or repeat previously completed copy/deletion stages of the `UIDPLUS` fallback, since doing so may cause duplicates or unintended changes.
+7. Synchronize source and destination folder listings, counters, and conversation-membership caches according to the state actually observed on the IMAP server, including after partial or uncertain outcomes.
+
+**RTRM011 is complete for the approved scope.** Further implementation details may be specified separately if needed.
 
 **Related requirements:** RFRM033–RFRM034, RFRM039, RFRM062; RTRM007; RTSN.
 
