@@ -10,7 +10,7 @@
 
 This document specifies the technical implementation of mailbox reading and management through IMAP, following the functional requirements in `RFRM`.
 
-The requirements are introduced incrementally as their behavior is agreed. `RTRM001` covers folder hierarchy retrieval and status counters; `RTRM002` covers on-demand account storage usage and limit; `RTRM003` covers creation of individual mailboxes and subfolders; `RTRM004` covers folder renaming and movement; `RTRM005` covers folder deletion. `RTRM006` covers filtered, sorted, paginated individual-message listings. `RTRM007` defines grouped-conversation listings incrementally; only reviewed and approved decisions are documented below. Conversation reading, searches, and remaining message operations will be specified in subsequent requirements.
+The requirements are introduced incrementally as their behavior is agreed. `RTRM001` covers folder hierarchy retrieval and status counters; `RTRM002` covers on-demand account storage usage and limit; `RTRM003` covers creation of individual mailboxes and subfolders; `RTRM004` covers folder renaming and movement; `RTRM005` covers folder deletion. `RTRM006` covers filtered, sorted, paginated individual-message listings. `RTRM007` covers grouped-conversation listings and their session cache. `RTRM008` defines individual-message reading incrementally, recording only decisions reviewed and approved below. Conversation reading, searches, and remaining message operations will be specified in subsequent requirements.
 
 ## Technical requirements
 
@@ -369,8 +369,26 @@ This cache is temporary and session-scoped: it does not persist a message or con
 
 **Related requirements:** RFRM012, RFRM014–RFRM015, RFRM053–RFRM054, RFRM057; RTGS025; RTRM006.
 
+### Individual-message reading
+
+#### RTRM008 — Identify and fetch one message safely
+
+The `read_message` operation must retrieve **only the message explicitly requested** by the client, independently of the account's `thread_view` preference:
+
+1. Accept the selected message's **folder, `UIDVALIDITY`, and UID** as its complete identity.
+2. Open/select the specified mailbox through an on-demand authenticated IMAP connection, following the existing connection and session-management rules.
+3. Check the mailbox's current `UIDVALIDITY` against the client's supplied value **before attempting to fetch or modify the message**.
+4. On a `UIDVALIDITY` mismatch, return a specific message-identity error and do not attempt to retrieve the UID from the changed mailbox.
+5. When identity matches, use `UID FETCH` targeted to **that UID only** to retrieve the requested message.
+6. If the specified UID no longer exists in the mailbox, return a specific message-unavailable error.
+7. Do **not** discover related messages or perform conversation-thread searches as part of `read_message`. Conversation reading belongs to the separate `read_thread` operation.
+
+The precise retrieval of headers, MIME contents, attachment metadata, and application of `mark_as_read` will be specified through subsequent approved decisions within `RTRM008`.
+
+**Related requirements:** RFRM017, RFRM018, RFRM062; RTCA session and connection rules.
+
 ## Scope boundaries and follow-up documentation
 
 - **Quota information:** `RTRM002` implements only on-demand `STORAGE` usage and limit, beginning with `GETQUOTAROOT INBOX`. A complete per-mailbox quota-root inventory and other quota resources are outside the initial scope.
-- **Folder modifications and listings:** `RTRM003` covers folder creation, `RTRM004` covers renaming and movement, `RTRM005` covers deletion, and `RTRM006` covers individual-message listings. `RTRM007` is being defined incrementally for grouped-conversation listings; remaining message operations will follow.
+- **Folder modifications and listings:** `RTRM003` covers folder creation, `RTRM004` covers renaming and movement, `RTRM005` covers deletion, and `RTRM006` covers individual-message listings. `RTRM007` covers grouped-conversation listings, while `RTRM008` begins the individual-message reading operation; remaining message operations will follow.
 - **Server authority:** actual mailbox inventory, status values, attributes, and access restrictions come from the IMAP server.
