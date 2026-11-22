@@ -10,7 +10,7 @@
 
 This document specifies the technical implementation of mailbox reading and management through IMAP, following the functional requirements in `RFRM`.
 
-The requirements are introduced incrementally as their behavior is agreed. `RTRM001` covers folder hierarchy retrieval and status counters; `RTRM002` covers on-demand account storage usage and limit; `RTRM003` covers creation of individual mailboxes and subfolders; `RTRM004` covers folder renaming and movement; `RTRM005` covers folder deletion. `RTRM006` covers filtered, sorted, paginated individual-message listings. `RTRM007` covers grouped-conversation listings and their session cache. `RTRM008` covers individual-message reading, headers, and downloads. `RTRM009` covers conversation reading. `RTRM010` covers explicit IMAP flag updates, bulk read-state actions, and reuse of the established synchronization mechanisms. `RTRM011` covers message moves, archive/unarchive reuse, and safe handling of confirmed, partial, and uncertain outcomes. `RTRM012` defines message deletion incrementally, recording only reviewed and approved decisions below. Searches and remaining message operations will be specified in subsequent requirements.
+The requirements are introduced incrementally as their behavior is agreed. `RTRM001` covers folder hierarchy retrieval and status counters; `RTRM002` covers on-demand account storage usage and limit; `RTRM003` covers creation of individual mailboxes and subfolders; `RTRM004` covers folder renaming and movement; `RTRM005` covers folder deletion. `RTRM006` covers filtered, sorted, paginated individual-message listings. `RTRM007` covers grouped-conversation listings and their session cache. `RTRM008` covers individual-message reading, headers, and downloads. `RTRM009` covers conversation reading. `RTRM010` covers explicit IMAP flag updates, bulk read-state actions, and reuse of the established synchronization mechanisms. `RTRM011` covers message moves, archive/unarchive reuse, and safe handling of confirmed, partial, and uncertain outcomes. `RTRM012` covers selected-message deletion, permanent deletion, emptying folders, and deleting conversations from both grouped listings and open conversation views. Searches and remaining message operations will be specified in subsequent requirements.
 
 ## Technical requirements
 
@@ -699,7 +699,17 @@ This completes the initially approved technical behavior for `RTRM009`; any addi
 6. Treat this cross-folder action as **non-atomic**. Return known per-message successes, failures, and uncertain outcomes where available; do not automatically repeat uncertain destructive operations.
 7. Synchronize each affected mailbox's listings and counters and invalidate affected conversation-membership caches according to confirmed changes.
 
-**Still pending within RTRM012:** deletion initiated from an open conversation and any further deletion decisions.
+**Delete a conversation from an open `read_thread` view:**
+
+1. Accept the **full set of related physical-message identities** (folder, `UIDVALIDITY`, and UID) already returned by `read_thread`. This operation affects **all discovered messages across the account**, regardless of the effective `thread_multifolder` preference.
+2. Reuse those identifiers without rediscovering the conversation. Retain physically distinct copies even when they share a `Message-ID`, and group the identifiers by source mailbox.
+3. Validate each mailbox's current `UIDVALIDITY`, each message identity, and the applicable IMAP permissions before modifying its messages.
+4. Apply the account's effective `delete_to_trash` policy **per source mailbox** using the previously approved `RTRM012` mechanisms: move messages into the resolved Trash mailbox when required, and permanently delete messages already in Trash or when the preference is `false`.
+5. Group UIDs by mailbox and use batched IMAP commands where possible; do not fetch message bodies or attachments or repeat thread discovery.
+6. Synchronize the affected folder lists, counters, and conversation-membership caches according to confirmed IMAP changes. Report known per-message successes, failures, and uncertain outcomes without assuming cross-folder atomicity or automatically repeating uncertain destructive operations.
+7. As established by `RFRM038`, the **client** decides whether and how to ask for confirmation before deletion; the backend must not require an additional confirmation workflow.
+
+**RTRM012 is complete for the approved scope.**
 
 **Related requirements:** RFRM035–RFRM039, RFRM062; RTGS011–RTGS015, RTGS022; RTRM007, RTRM011; RTSN.
 
