@@ -352,7 +352,18 @@ When the effective account preference is `thread_view = true`, Postela must use 
 5. If querying another folder fails, **preserve the folder-local listing and quick filters**. Apply the existing transient-connection retry policy. Return `null` for any affected aggregate counter that cannot be established reliably, together with identifiable error information; never present a partial value as an exact count. Counters that remain reliable may still be returned.
 6. Do not persist a local message or conversation index. Cross-folder discovery is performed only for the page's conversations, not for conversations on other pages.
 
-**Still pending:** detailed conversation-structure cache lifecycle and invalidation rules.
+**Conversation-structure cache lifecycle:**
+
+1. **Create on demand:** when a session first requests a grouped listing for a folder, obtain its complete `UID THREAD REFS` structure and retain it for potential reuse, subject to the cache capacity defined in `RTGS025` (Postela default: **200,000 member UIDs per session**, administrator-configurable through TOML).
+2. **Reuse:** preserve the same folder's structure when requesting other pages, applying different folder-local quick filters, or changing the conversation-list sort order. These changes do not, by themselves, modify the underlying conversation membership.
+3. **Switch folders:** hold the structure for **at most one selected folder per session**. Discard the previous folder's cached structure when another folder's structure is needed. Keep caches separate for different authenticated sessions.
+4. **Invalidate on membership changes:** invalidate the affected folder's cached structure after message arrival, expunge/deletion, or movement that changes its membership, or when `UIDVALIDITY` changes. Flag-only changes (`\\Seen`, `\\Flagged`) do not invalidate conversation relationships; refresh or invalidate the affected unread/flagged counters separately.
+5. **Regenerate only on demand:** an invalidation must not immediately execute another `UID THREAD REFS`. Rebuild when the session next requests a grouped listing that needs the structure. Avoid duplicate concurrent reconstructions for the same session and folder.
+6. **Handle disconnections:** retain a valid structure across transient client WebSocket disconnections while the backend session remains valid. Invalidate it if IMAP monitoring is interrupted and changes could have been missed.
+7. **Release:** discard the cache on explicit logout, session expiration or invalidation, and backend restart, following the established session lifecycle.
+8. **Exceeding capacity:** if a folder's complete thread structure exceeds the configured UID limit, process the requested page using that result, then discard the structure without retaining a truncated cache. Exceeding cache capacity must never prevent accessing a large folder or artificially reduce `page_size`.
+
+This cache is temporary and session-scoped: it does not persist a message or conversation index and does not create a per-client persistent IMAP connection.
 
 
 
