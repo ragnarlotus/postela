@@ -10,7 +10,7 @@
 
 This document specifies the technical implementation of mailbox reading and management through IMAP, following the functional requirements in `RFRM`.
 
-The requirements are introduced incrementally as their behavior is agreed. `RTRM001` covers folder hierarchy retrieval and status counters; `RTRM002` covers on-demand account storage usage and limit; `RTRM003` covers creation of individual mailboxes and subfolders; `RTRM004` covers folder renaming and movement; `RTRM005` covers folder deletion. `RTRM006` covers filtered, sorted, paginated individual-message listings. `RTRM007` covers grouped-conversation listings and their session cache. `RTRM008` covers individual-message reading, headers, and downloads. `RTRM009` covers conversation reading. `RTRM010` covers explicit IMAP flag updates, bulk read-state actions, and reuse of the established synchronization mechanisms. Searches and remaining message operations will be specified in subsequent requirements.
+The requirements are introduced incrementally as their behavior is agreed. `RTRM001` covers folder hierarchy retrieval and status counters; `RTRM002` covers on-demand account storage usage and limit; `RTRM003` covers creation of individual mailboxes and subfolders; `RTRM004` covers folder renaming and movement; `RTRM005` covers folder deletion. `RTRM006` covers filtered, sorted, paginated individual-message listings. `RTRM007` covers grouped-conversation listings and their session cache. `RTRM008` covers individual-message reading, headers, and downloads. `RTRM009` covers conversation reading. `RTRM010` covers explicit IMAP flag updates, bulk read-state actions, and reuse of the established synchronization mechanisms. `RTRM011` defines message moves incrementally, recording only reviewed and approved decisions below. Searches and remaining message operations will be specified in subsequent requirements.
 
 ## Technical requirements
 
@@ -606,6 +606,22 @@ This completes the initially approved technical behavior for `RTRM009`; any addi
 **RTRM010 is complete for the approved scope.** Further flag-sync protocol details may be specified later if needed without adding another synchronization mechanism.
 
 **Related requirements:** RFRM028–RFRM032, RFRM058, RFRM062; RTRM008–RTRM009; RTSN.
+
+### Moving messages
+
+#### RTRM011 — Move messages between existing folders
+
+**Primary mechanism: `UID MOVE` (RFC 6851):**
+
+1. Accept the **source folder, its `UIDVALIDITY`, and the selected message UIDs** from the client, together with the destination folder. The destination must be a different, existing mailbox capable of storing messages.
+2. Validate the source message identities against the selected mailbox's current `UIDVALIDITY`, and verify that the source and destination folders are available and permit the requested move.
+3. When the IMAP server advertises the `MOVE` capability, issue **`UID MOVE`** for the selected UID set. Use the server-side IMAP operation rather than downloading and re-uploading message bodies or attachments.
+4. Preserve message contents, attachments, and flags to the extent supported by the IMAP server.
+5. Synchronize affected source and destination folder listings and counters through the established IMAP notification architecture, and invalidate affected cached conversation structures because moving messages changes folder membership.
+
+**Still pending within RTRM011:** the behavior when the IMAP server does **not** support the `MOVE` capability, and any further move-operation decisions.
+
+**Related requirements:** RFRM033–RFRM034, RFRM039, RFRM062; RTRM007; RTSN.
 
 ## Scope boundaries and follow-up documentation
 
