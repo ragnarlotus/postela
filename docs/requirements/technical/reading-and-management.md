@@ -493,15 +493,22 @@ The distinct `read_thread` operation must open a complete discoverable conversat
 
 **On-demand discovery of related messages across folders:**
 
-1. Starting from the validated entry-point message, use UID-targeted `FETCH` to obtain its `Message-ID`, `In-Reply-To`, and `References` headers, without retrieving its body or attachments.
+1. Starting from the validated entry-point message, use UID-targeted `FETCH` to obtain its `Message-ID`, `In-Reply-To`, `References`, and `Date` headers together with `INTERNALDATE`, without retrieving its body or attachments.
 2. Search **all accessible folders of the authenticated account** using IMAP `UID SEARCH HEADER` criteria for the known message identifiers in the relevant threading headers (`Message-ID`, `In-Reply-To`, and `References`). Do not treat a shared subject or sender as evidence of a conversation relationship.
-3. Treat search results as **candidates**, not confirmed members: retrieve the candidate messages' threading headers and verify their explicit identifier relationships, since `SEARCH HEADER` may match substrings rather than whole message identifiers.
+3. Treat search results as **candidates**, not confirmed members: retrieve their threading headers and `Date` header together with `INTERNALDATE`, and verify their explicit identifier relationships, since `SEARCH HEADER` may match substrings rather than whole message identifiers. **Batch candidate UID FETCH requests by selected folder and sets of UIDs** rather than issuing one request per message.
 4. Expand the set of known identifiers and repeat searches as needed until no new related physical messages can be discovered. Relationships preserved in `References` can connect surviving messages through identifiers of intermediate messages that were moved or deleted.
 5. Retain each discovered physical message separately, identified by **folder, `UIDVALIDITY`, and UID**, even when multiple physical copies share the same `Message-ID`. Do not deduplicate physical copies by message identifier.
 6. Discover membership using only the necessary message headers; **do not download bodies or attachments** in this phase. Do not persist a local account-wide message or conversation index.
 7. Return the related messages actually discovered; do not claim that the absence of additional results proves that no other related messages exist.
 
-**Still pending within RTRM009:** chronological ordering and handling distinct physical copies in the returned result, message-content retrieval, and the selected-message-only read-state change.
+**Chronological ordering without an extra date-fetch phase:**
+
+1. During the same `UID FETCH` operations used to discover and validate conversation candidates, request `Date` via `BODY.PEEK[HEADER.FIELDS (MESSAGE-ID IN-REPLY-TO REFERENCES DATE)]` and request `INTERNALDATE` as an additional FETCH item. Each request can target a UID set in its selected mailbox; a single FETCH cannot span multiple selected mailboxes.
+2. Retain the retrieved date information alongside each discovered physical message. Do not perform a separate second round of IMAP requests solely to retrieve message dates.
+3. After discovery has finished, order **only the discovered related messages**, across all their folders, by the parsed `Date` header in ascending chronological order (oldest first), accounting for time-zone offsets. If `Date` is missing or cannot be parsed, fall back to `INTERNALDATE`.
+4. Preserve **all distinct physical copies** of messages in the returned result, even when they have the same `Message-ID`. Each entry retains its source folder, `UIDVALIDITY`, and UID. Do not deduplicate by `Message-ID`.
+
+**Still pending within RTRM009:** message-content retrieval and the selected-message-only read-state change.
 
 **Related requirements:** RFRM017–RFRM021, RFRM053–RFRM055, RFRM062; RTRM008.
 
