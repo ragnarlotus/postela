@@ -413,11 +413,11 @@ A global search must cover **all available folders** of the authenticated accoun
 
 Postela must not implicitly exclude those folders or limit the global search to the inbox or subscribed folders.
 
-#### RFRM046 — Search criteria and date types
+#### RFRM046 — Search criteria and received-date filtering
 
 The client must be able to filter messages by sender, recipients, subject, message content, dates, and message state/flags.
 
-Date searches must distinguish **message/sent date** (`sent_date`) from **received/internal date** (`received_date`), with optional start and end dates for either criterion. An unspecified date type must mean `sent_date`. Date criteria are evaluated by calendar days as supported by IMAP.
+Date searches must use **only the received/internal date** (`received_date`, IMAP `INTERNALDATE`). The client may provide an optional **inclusive start date** and an optional **inclusive end date**; no date-type selector or `sent_date` search filter is required. For a search on a **single calendar day**, the client supplies **the same date as both start and end**. Date criteria are evaluated by calendar days according to IMAP semantics. An interval with a start date after its end date must be rejected.
 
 The search must be performed against the server through IMAP rather than against a locally persisted message index.
 
