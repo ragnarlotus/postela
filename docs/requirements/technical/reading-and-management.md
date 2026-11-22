@@ -439,12 +439,14 @@ The `read_message` operation must retrieve **only the message explicitly request
 
 1. Automatically authorize otherwise permitted remote resources only when the message's `From` email address matches an **exact address** in the authenticated account's trusted-sender list. A matching domain alone is insufficient.
 2. In addition to the address match, require a **reliable DMARC `pass` result aligned with the `From` domain** when the receiving mail infrastructure provides trustworthy authentication results. A matching `From` address without such verification must not authorize automatic remote-content loading.
-3. Do **not** trust an `Authentication-Results` header merely because it appears in the message: accept only results attributable to an identified, trusted receiving/authentication system. The procedure for establishing which results are trustworthy must be separately specified before implementation.
-4. If the address is unlisted, authentication fails, or the DMARC result cannot be reliably verified, **keep remote resources blocked automatically**. A listed address is not proof that the individual sender personally authored the message; DMARC authenticates aligned domains.
-5. When automatic authorization cannot be established, allow the user to explicitly authorize remote content **for the currently displayed message only**, without adding or changing any trusted-sender entry.
-6. Whether loading is automatic or manually authorized, only restore remote URLs otherwise permitted by the approved sanitization and resource-blocking rules. Never allow scripts, active content, or unsafe URL schemes.
+3. Under the centralized mail-server configuration defined by `RTCA009`, **the receiving mail infrastructure configured by the administrator is trusted**. Postela delegates SPF, DKIM, and DMARC verification to that infrastructure and consumes its authenticated results rather than repeating the cryptographic verification itself.
+4. The configured receiving infrastructure **must strip or neutralize forged authentication-result headers** before recording its own results. Merely finding an `Authentication-Results` header in stored email does not establish that it originated from the receiving infrastructure; Postela must not treat unverifiable results as reliable. This is an **infrastructure security requirement**, not an additional list of trusted servers to maintain in Postela.
+5. **Do not add `trusted_authserv_ids` configuration or a separate administrator-managed authentication-server allowlist.** The existing administrator-managed IMAP/server configuration is the trust boundary; no Postela-specific DKIM re-verification of full message bodies is required.
+6. If the address is unlisted, authentication fails, or the DMARC result cannot be reliably attributed to the configured receiving infrastructure, **keep remote resources blocked automatically**. A listed address does not prove that the individual sender authored the message; DMARC authenticates aligned domains.
+7. When automatic authorization cannot be established, allow the user to explicitly authorize remote content **for the currently displayed message only**, without adding or changing any trusted-sender entry.
+8. Whether loading is automatic or manually authorized, only restore remote URLs otherwise permitted by the approved sanitization and resource-blocking rules. Never allow scripts, active content, or unsafe URL schemes.
 
-**Still pending within RTRM008:** how to establish trustworthy mail-server authentication results, complete original headers, and attachment retrieval.
+**Still pending within RTRM008:** complete original headers and attachment retrieval.
 
 **Related requirements:** RFRM017, RFRM018, RFRM024, RFRM026–RFRM027, RFRM062; RFGS010–RFGS012; RTCA session and connection rules.
 
