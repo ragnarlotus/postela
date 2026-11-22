@@ -293,7 +293,7 @@ The grouped-conversation listing (`thread_view = true`) has separate threading, 
 
 ### Grouped conversation listings
 
-#### RTRM007 — Retrieve grouped conversation structure (approved initial decision)
+#### RTRM007 — Grouped conversation structure and folder-local quick filters
 
 When the effective account preference is `thread_view = true`, Postela must use **`UID THREAD REFS`** on the selected IMAP mailbox to obtain the server-provided conversation structure.
 
@@ -302,7 +302,15 @@ When the effective account preference is `thread_view = true`, Postela must use 
 - If the IMAP server does **not** advertise `THREAD=REFS`, use the individual-message listing described in `RTRM006`. Preserve the saved `thread_view` preference and inform the client of the unavailable grouped-list capability.
 - The conversation structure **may be cached temporarily per authenticated session** within the separate limits already defined in `RTGS025`, without persisting a message/conversation index. Detailed cache lifecycle and invalidation rules will be specified in later decisions for this requirement.
 
-**Pending decisions within RTRM007:** technical quick-filter application, selection of representative messages, grouped sorting and pagination, conversation counters, and detailed cache behavior. No implementation approach for these pending aspects is approved by this section.
+**Folder-local quick filtering:**
+
+1. Apply quick filters **only to messages physically present in the currently selected IMAP mailbox**, excluding its subfolders and all other mailboxes, regardless of `thread_multifolder`.
+2. Use IMAP `UID SEARCH UNSEEN` for unread messages, `UID SEARCH FLAGGED` for flagged messages, and `UID SEARCH UNSEEN FLAGGED` when both filters are active (**AND** semantics). When no quick filter is active, every conversation in the selected folder is eligible.
+3. Intersect the returned matching UIDs with the members of each conversation in the complete `UID THREAD REFS` structure for that folder, reusing the cached structure if available. **Do not rebuild the thread structure by running `THREAD REFS` only on filtered messages.**
+4. Include a conversation in the filtered listing if **at least one of its messages belonging to the currently selected folder** matches every active filter. Do not search other folders to determine whether a conversation qualifies.
+5. Filtering must not split a conversation, change its complete membership, or reduce its reported conversation counters to the subset of matching messages. Technical rules for counter calculation and representative selection are specified separately.
+
+**Pending decisions within RTRM007:** selection of representative messages, grouped sorting and pagination, conversation-counter computation, and detailed cache behavior. These aspects will be defined through separately reviewed technical decisions.
 
 **Related requirements:** RFRM012, RFRM014–RFRM015, RFRM053–RFRM054, RFRM057; RTGS025; RTRM006.
 
