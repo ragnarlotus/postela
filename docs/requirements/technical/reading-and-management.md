@@ -823,7 +823,17 @@ This completes the initially approved technical behavior for `RTRM009`; any addi
 4. If **either** the final match count or the number of messages requiring MIME inspection **would exceed** `max_results`, reject the search with a distinct limit-exceeded response instructing the client to request narrower criteria. It is acceptable to stop processing once an over-limit count has been established; do not claim to know a complete match count if the search was terminated early.
 5. **Never** silently truncate or paginate a subset as if it were the complete matching result. Only after both applicable limits are satisfied may Postela sort all definitive matches in memory and apply global pagination, as approved above.
 
-**Still pending within RTRM014:** concrete search request format, pagination state/efficiency decisions, and other error/partial-result details.
+**Session-scoped ordered search-result cache for pagination:**
+
+1. After a successful initial search satisfying the shared `search.max_results` limit, complete the approved global ordering and retain an **ordered list of physical message identities** (mailbox, `UIDVALIDITY`, UID) in memory for subsequent pages of that search.
+2. Maintain **at most one advanced-search result cache per authenticated session**, independent of other sessions and the existing folder-list and conversation caches. The cached identities must represent the same search scope, criteria (including nested boolean groups), effective sorting and direction, and underlying mailbox UID generations; do not reuse them for a different search.
+3. **Subsequent page requests** reuse this ordered identity list, applying pagination globally to that list and fetching only the additional metadata required for the requested page. They must not rerun the full IMAP search or global ordering while the cached result remains valid.
+4. **A new advanced search replaces** the existing search-result cache for that session. The cache may contain **at most `search.max_results` message identities**; never persist message bodies, attachments, a local search index, or a separate searchable message-metadata collection.
+5. Invalidate the affected session search caches when IMAP notifications or confirmed operations change membership, match criteria, sorting values, mailbox availability, or `UIDVALIDITY` for any participating mailbox. Invalidation triggers **no immediate re-query**; rebuild only when that session next requests the affected search or page, and do not serve stale identities as current results.
+6. Keep the cache across transient WebSocket reconnections only while its authenticated backend session remains valid. Release it on logout, session invalidation or expiry, and backend restart, using the established session lifecycle and without maintaining a persistent IMAP connection.
+7. Preserve the existing reporting of per-mailbox partial failures and invalid message identities; never claim that a cached result remains complete or valid after relevant mailbox state changes.
+
+**Still pending within RTRM014:** concrete search request format, finer details of page requests after cache invalidation, and other error/partial-result behavior.
 
 **Related requirements:** RFRM044–RFRM050, RFRM061–RFRM062; RTRM001, RTRM006–RTRM007; RTSN.
 
