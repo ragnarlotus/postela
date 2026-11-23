@@ -453,6 +453,8 @@ Advanced searches are subject to **one administrator-controlled result-processin
 
 When some in-scope folders fail during a search, Postela may still present and paginate the matches obtained from successfully searched folders. The client must receive an explicit **incomplete-results indication** and the affected folder failures; subsequent page requests must retain that partial-result status and **reuse the same cached partial results without automatically retrying failed folders**. If the user wants to attempt a complete result, the client must **explicitly repeat the search**. This does not prevent cache invalidation due to actual mailbox changes under the separately approved synchronization rules.
 
+The search response must expose **one `total` count**, equal to the number of matching messages **actually obtained and included in the current ordered result set**. This count determines pagination for both complete and incomplete searches. For partial searches, keep the separate incomplete-results indication and mailbox errors, but **do not introduce a second count or use `null` for `total`** merely because some mailboxes failed; the client already knows the count may exclude unavailable mailboxes.
+
 Postela must not persist emails, maintain a local full-text search index, or require downloading all message bodies for searching. The efficient implementation of multi-folder searching, combining results, and pagination belongs to `RTRM`.
 
 ### Deferred features
