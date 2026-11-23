@@ -455,6 +455,8 @@ When some in-scope folders fail during a search, Postela may still present and p
 
 The search response must expose **one `total` count**, equal to the number of matching messages **actually obtained and included in the current ordered result set**. This count determines pagination for both complete and incomplete searches. For partial searches, keep the separate incomplete-results indication and mailbox errors, but **do not introduce a second count or use `null` for `total`** merely because some mailboxes failed; the client already knows the count may exclude unavailable mailboxes.
 
+After an invalidated search is regenerated, if the previously requested page is now **beyond the last available page**, Postela must return **the last available page** rather than an empty page or restarting at page one. If no matches remain, return the **first page with an empty result list and `total = 0`**. The response must include the **effective page number** so the client can update its navigation without a second request.
+
 Postela must not persist emails, maintain a local full-text search index, or require downloading all message bodies for searching. The efficient implementation of multi-folder searching, combining results, and pagination belongs to `RTRM`.
 
 ### Deferred features
