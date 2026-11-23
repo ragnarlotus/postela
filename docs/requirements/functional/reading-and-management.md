@@ -423,7 +423,7 @@ If **any folder from the original array has been deleted or renamed** when the c
 
 The client must be able to filter messages by sender, recipients, subject, message content, dates, and message state/flags.
 
-Date searches must use **only the received/internal date** (`received_date`, IMAP `INTERNALDATE`). The client may provide an optional **inclusive start date** and an optional **inclusive end date**; no date-type selector or `sent_date` search filter is required. For a search on a **single calendar day**, the client supplies **the same date as both start and end**. Date criteria are evaluated by calendar days according to IMAP semantics. An interval with a start date after its end date must be rejected.
+Date searches must use **only the received/internal date** (`received_date`, IMAP `INTERNALDATE`). The JSON criterion is `{ "field": "received_date", "start": "YYYY-MM-DD", "end": "YYYY-MM-DD" }`, with either bound individually optional but **at least one required**. Both bounds are inclusive; no date-type selector or `sent_date` search filter is required. For a search on a **single calendar day**, the client supplies **the same date as both start and end**. Date criteria are evaluated by calendar days according to IMAP semantics. Invalid calendar dates and an interval with a start date after its end date must be rejected.
 
 The search must be performed against the server through IMAP rather than against a locally persisted message index.
 
