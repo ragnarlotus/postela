@@ -843,11 +843,17 @@ This completes the initially approved technical behavior for `RTRM009`; any addi
 
 **Partial search failures and pagination of incomplete results:**
 
-1. If one or more in-scope mailboxes cannot be searched, **keep the successfully retrieved matches**, order them globally among the available results, and **cache this partial ordered list** for the active authenticated session, subject to `search.max_results`.
+1. If **at least one in-scope selectable mailbox is searched successfully** while one or more others fail, **keep the successfully retrieved matches**, order them globally among the available results, and **cache this partial ordered list** for the active authenticated session, subject to `search.max_results`. This also applies when the successful mailbox searches return no matches.
 2. Include an explicit **incomplete-results indicator** and details of the failed mailboxes in the initial search response and **all subsequent page responses** from that cache, so the client can inform the user that additional matches may be missing.
 3. **Do not treat the partial failure itself as cache invalidation.** Following page requests must reuse the same incomplete cached result without automatically retrying failed mailbox searches. To retry those mailboxes the client must initiate a **new explicit search** at the user's request, replacing the prior cache.
 4. Continue to invalidate the cache for **actual relevant mailbox changes** as previously approved; only that independent invalidation causes an automatic regeneration on a later page request. If regeneration fails partially, its new partial result is likewise cached and marked incomplete.
 5. Return **one `total` count** equal to the number of message identities actually obtained in the current ordered result cache, even when the search is incomplete. Use that same count for pagination across the available results. Continue reporting the incomplete-results status and failed mailboxes separately; do not set `total` to `null` or introduce a separate hypothetical account-wide count. The incomplete status tells the client that additional matches may exist outside the successfully searched mailboxes.
+
+**All searched mailboxes fail:**
+
+1. If **every attempted selectable mailbox search fails** and none succeeds, return an identifiable **search-failed** error with the available per-mailbox failure details. **Do not return `total = 0` as though the search had succeeded**, and do not save an empty or partial ordered-result cache for that failed execution.
+2. Apply the same rule when regenerating an invalidated search. Do not serve its previously invalidated cached identities as current results or retain a failed regeneration as a usable cache.
+3. A search that **successfully checks all applicable mailboxes and finds no messages** is instead a completed search with `total = 0` and page 1 empty. If some mailboxes succeed with zero matches and others fail, use the approved **partial-result cache** and incomplete-results indication, with `total = 0`.
 
 **Advanced-search page size:**
 
