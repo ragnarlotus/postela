@@ -354,6 +354,7 @@ The Postela defaults in `config.default.toml` must be:
 [search]
 sort_by = "date"
 sort_direction = "desc"
+max_results = 500
 ```
 
 `sort_by` must be validated against `date`, `folder`, `sender_name`, `sender_email`, and `subject`; `sort_direction` must accept `asc` or `desc`. Administrator overrides use the layered configuration rules of RTCA004–RTCA008.
@@ -383,6 +384,18 @@ Their effective values must follow the layered administrator TOML configuration 
 Folder deletion sequence, partial results, special-folder invalidation, and error behavior belong to `RTRM`.
 
 **Related requirements:** RFRM007–RFRM011; RTCA004–RTCA008.
+
+### Advanced-search processing limits
+
+#### RTGS028 — Single administrator-configurable search limit
+
+Provide exactly **one** administrator-only TOML setting, `[search].max_results`, initially **500** in `config.default.toml`. Require a positive integer, validate it with the layered configuration rules of `RTCA004–RTCA008`, and do not expose it as an account or client preference or allow a per-request override.
+
+This **single configuration value** applies to both (a) the total number of messages matching an advanced search and (b) the number of candidate messages that must be inspected with `UID FETCH BODYSTRUCTURE` to evaluate attachment-presence conditions. No second limit for MIME inspection is defined.
+
+If either count would exceed the configured value, reject the query with an identifiable limit-exceeded error requesting narrower search criteria; do not truncate matching messages, silently drop candidates, or display an arbitrarily limited subset as a complete result. The limit is **independent of folder-list `page_size` and advanced-search pagination**. Exact counting and early-rejection behavior belong to `RTRM014`.
+
+**Related requirements:** RFGS017; RFRM048, RFRM050; RTRM014; RTCA004–RTCA008.
 
 ## Boundaries and deferred decisions
 
