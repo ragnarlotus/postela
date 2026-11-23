@@ -856,6 +856,12 @@ This completes the initially approved technical behavior for `RTRM009`; any addi
 3. Keep `page_size` independent of the administrator-only `[search].max_results` processing cap: pagination never permits exceeding the result limit and the limit does not change the effective page size.
 4. For **all page requests, with a valid cache or after regeneration**, clamp integer page numbers to the available range. If the requested page is **less than 1**, return page **1**; if it exceeds the **last available page**, return that last page; otherwise return the requested page. When `total = 0`, return **page 1 with an empty result list**. Return the **effective page number** in the response, allowing the frontend to update navigation without an additional request.
 
+**Reject advanced searches without effective conditions:**
+
+1. Validate the client-provided search expression before querying any IMAP mailbox. Require **at least one effective supported search criterion**; an absent criteria expression or a tree containing only empty logical groups/operators does not qualify.
+2. Reject these requests with an identifiable **invalid-search-criteria** error; do not replace them with IMAP `UID SEARCH ALL` or traverse the account merely to return unfiltered results. Existing folder-listing operations provide unfiltered mailbox browsing.
+3. Leave the concrete client-to-backend expression format unspecified, as previously agreed; this validation applies regardless of the eventual request representation.
+
 **Still pending within RTRM014:** concrete client-to-backend search request format and other pagination/error-response details.
 
 **Related requirements:** RFRM044–RFRM050, RFRM061–RFRM062; RTRM001, RTRM006–RTRM007; RTSN.
