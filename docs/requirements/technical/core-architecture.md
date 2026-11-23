@@ -269,7 +269,14 @@ Operation failures must use stable, language-independent error codes, with enoug
 
 Backend-originated warning notifications must not, solely because they were sent, terminate an active advanced search or discard its session cache. Any independent invalidation resulting from actual relevant IMAP state changes remains subject to the existing search-cache rules.
 
-The **concrete JSON error and warning schemas, request-correlation fields for warnings, and warning-repeat policy** remain subject to separate decisions. This requirement establishes the shared behavior, not the transport shape.
+**Common JSON error object for failed operations:**
+
+1. Represent an operation error as a JSON object with a required stable, language-independent string `code`, a required technical diagnostic string `message`, and optional structured `details` for operation-specific context.
+2. For example: `{ "code": "folder-not-found", "message": "One or more requested folders do not exist", "details": { "folders": ["Archive/2025"] } }`.
+3. Place this object in the error-bearing response associated with the originating request, under the generic WebSocket response envelope to be finalized in `RTCA027`.
+4. The client uses `code` to select a localized user-facing message. `message` is diagnostic information rather than prelocalized display text; `details` provides context without requiring a separate error-object schema for every operation.
+
+The **concrete warning-notification schema, request-correlation fields for warnings, and warning-repeat policy** remain subject to separate decisions. The surrounding WebSocket envelope schema also remains under `RTCA027`.
 
 An ordinary operation failure must not terminate other requests, the authenticated session, or its WebSocket.
 
