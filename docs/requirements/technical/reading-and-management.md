@@ -847,7 +847,7 @@ This completes the initially approved technical behavior for `RTRM009`; any addi
 2. Include an explicit **incomplete-results indicator** and details of the failed mailboxes in the initial search response and **all subsequent page responses** from that cache, so the client can inform the user that additional matches may be missing.
 3. **Do not treat the partial failure itself as cache invalidation.** Following page requests must reuse the same incomplete cached result without automatically retrying failed mailbox searches. To retry those mailboxes the client must initiate a **new explicit search** at the user's request, replacing the prior cache.
 4. Continue to invalidate the cache for **actual relevant mailbox changes** as previously approved; only that independent invalidation causes an automatic regeneration on a later page request. If regeneration fails partially, its new partial result is likewise cached and marked incomplete.
-5. Never present the count of cached partial results as the definitive total number of matching messages in the full search scope.
+5. Return **one `total` count** equal to the number of message identities actually obtained in the current ordered result cache, even when the search is incomplete. Use that same count for pagination across the available results. Continue reporting the incomplete-results status and failed mailboxes separately; do not set `total` to `null` or introduce a separate hypothetical account-wide count. The incomplete status tells the client that additional matches may exist outside the successfully searched mailboxes.
 
 **Advanced-search page size:**
 
