@@ -769,6 +769,13 @@ This completes the initially approved technical behavior for `RTRM009`; any addi
 4. Evaluate these criteria on the IMAP server through `UID SEARCH`, without downloading messages to examine their content, persisting a local message index, or duplicating IMAP flag state.
 5. Preserve the containing mailbox, `UIDVALIDITY`, and matching UID for each result, as already required by the approved search-scope behavior.
 
+**JSON representation of text search criteria:**
+
+1. Represent text predicates as `{ "field": "<name>", "value": "<nonempty string>" }`, where `<name>` is `from`, `to`, `cc`, `bcc`, `recipients`, `subject`, `body`, or `text`. Do not require a separate comparison operator.
+2. Map `from` to IMAP `FROM`, `to` to `TO`, `cc` to `CC`, `bcc` to `BCC`, `subject` to `SUBJECT`, `body` to `BODY`, and `text` to `TEXT`. Translate `recipients` to a grouped logical OR across `TO`, `CC`, and `BCC` so its internal grouping remains intact when nested under other operators.
+3. Reject empty or non-string values and unsupported fields. Use the IMAP server's standard substring-matching semantics; do not claim to support SQL `LIKE` wildcards or regular expressions.
+4. Encode and quote input safely as data in IMAP queries, including the appropriate character-set handling, and never splice client values as raw IMAP syntax. Allow these conditions within the approved `AND`/`OR`/`NOT` criteria tree.
+
 **Received-date search criteria:**
 
 1. Date filtering uses **only `received_date`** (the IMAP message `INTERNALDATE`), with optional calendar-date **start** and **end** fields. Do not expose a `sent_date` date filter or a date-type selector.
