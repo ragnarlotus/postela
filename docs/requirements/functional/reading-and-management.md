@@ -401,19 +401,19 @@ A grouped-list thread operation may instead receive its representative message i
 
 ### Message search
 
-#### RFRM044 — Search within a folder and its descendants
+#### RFRM044 — Search within explicitly selected folders and their descendants
 
-A search scoped to a folder must include messages in **that folder and all its descendant subfolders**, regardless of hierarchy depth.
+A search may target **one folder or multiple folders explicitly selected by the client**. It must include messages in **each selected folder and all its descendant subfolders**, regardless of hierarchy depth. Overlapping selections must not cause the same physical mailbox or matching message to be searched or counted more than once.
 
 Before starting a folder-scoped search, Postela must confirm that the **requested folder exists on the IMAP server**. If it does not exist (for example, after being deleted or renamed), reject the search with an identifiable **folder-not-found** error. Do **not** treat the nonexistent folder as a successful empty search or cache results for that failed request. This is distinct from an existing non-selectable folder with no selectable descendants.
 
 Each result must identify the IMAP folder that contains the matching message.
 
-#### RFRM045 — Search across the entire account
+#### RFRM045 — Explicitly selected account-wide scope; no default scope
 
-A global search must cover **all available folders** of the authenticated account, including `Trash` and `Junk` by default.
+The client must **explicitly select one folder, multiple folders, or the entire account** for each new advanced search. There is **no default search scope**. If no folders or account-wide scope are selected, Postela must return an identifiable **search-scope-required** error without executing or caching the search.
 
-Postela must not implicitly exclude those folders or limit the global search to the inbox or subscribed folders.
+When the client **explicitly selects the entire account**, the search must cover **all available folders**, including `Trash`, `Junk`, and unsubscribed folders. Postela must not implicitly exclude those folders or limit an account-wide search to the inbox.
 
 #### RFRM046 — Search criteria and received-date filtering
 
