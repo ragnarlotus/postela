@@ -159,7 +159,7 @@ The administrator may override the default through TOML and the user may overrid
 
 Advanced message searches must use **date descending** as Postela's initial default sort order. The administrator may configure a different default search field and direction through TOML, independently of the account-wide default sorting preference for ordinary folder listings.
 
-A client may specify the field and direction for an individual search without updating account-wide preferences. The available search sort fields are `date`, `folder`, `sender_name`, `sender_email`, and `subject`, subject to actual server capabilities. Unavailable criteria must be handled according to RFRM061; lack of sorting support must not prevent search results from being returned.
+A client may specify the field and direction for an individual search without updating account-wide preferences. The available search sort fields are `date`, `folder`, `sender_name`, `sender_email`, and `subject`. Postela performs global ordering using message metadata independently of IMAP server-side sorting support. Missing message metadata and any sorting fallback must be handled according to RFRM061; lack of a server-side sorting extension must not prevent search results from being returned.
 
 **Related requirements:** RFRM061.
 
