@@ -854,6 +854,7 @@ This completes the initially approved technical behavior for `RTRM009`; any addi
 1. If **every attempted selectable mailbox search fails** and none succeeds, return an identifiable **search-failed** error with the available per-mailbox failure details. **Do not return `total = 0` as though the search had succeeded**, and do not save an empty or partial ordered-result cache for that failed execution.
 2. Apply the same rule when regenerating an invalidated search. Do not serve its previously invalidated cached identities as current results or retain a failed regeneration as a usable cache.
 3. A search that **successfully checks all applicable mailboxes and finds no messages** is instead a completed search with `total = 0` and page 1 empty. If some mailboxes succeed with zero matches and others fail, use the approved **partial-result cache** and incomplete-results indication, with `total = 0`.
+4. If the resolved search scope contains **zero selectable IMAP mailboxes**, including a non-selectable (`\Noselect`) folder without selectable descendants, **do not issue `UID SEARCH`**. Return a **successful, complete** search response with `total = 0`, an empty page 1, and no mailbox failures or incomplete-results status. **Cache the empty ordered result** for this active search under the same session rules as a successful zero-match search. Do not classify the absence of attempted mailbox searches as an all-mailbox failure.
 
 **Advanced-search page size:**
 
