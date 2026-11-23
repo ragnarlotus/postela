@@ -833,7 +833,15 @@ This completes the initially approved technical behavior for `RTRM009`; any addi
 6. Keep the cache across transient WebSocket reconnections only while its authenticated backend session remains valid. Release it on logout, session invalidation or expiry, and backend restart, using the established session lifecycle and without maintaining a persistent IMAP connection.
 7. Preserve the existing reporting of per-mailbox partial failures and invalid message identities; never claim that a cached result remains complete or valid after relevant mailbox state changes.
 
-**Still pending within RTRM014:** concrete search request format, finer details of page requests after cache invalidation, and other error/partial-result behavior.
+**Automatically rebuild an invalidated search when a page is requested:**
+
+1. Retain the **active search's scope, criteria (including nested boolean groups), and effective sorting options** in its authenticated-session cache alongside the ordered physical message identities, so the backend can rerun the same search without requiring the client to reconstruct it for a subsequent page request.
+2. When a relevant mailbox change invalidates the ordered results, **do not rerun the search immediately**. On the **next page request for that same active search**, automatically rerun the original search across its scope, recompute the full combined result and global ordering, and replace the invalidated identities before selecting the requested page.
+3. Reapply the current administrator-controlled **`search.max_results` limit** to both final matches and any `BODYSTRUCTURE` inspection candidates during regeneration. If it is exceeded, return the previously defined identifiable limit-exceeded error rather than a truncated page.
+4. Return the **requested page of the regenerated result set**, using the existing page numbering and pagination rules. Message additions, removals, moves, or metadata changes can cause entries to shift between pages; the response must reflect the updated result rather than stale cached positions.
+5. Preserve existing partial-failure and uncertain-result reporting if the regenerated search cannot cover every mailbox; never label an incomplete result as exhaustive. A new explicitly requested search still replaces the session's active search and cache.
+
+**Still pending within RTRM014:** concrete client-to-backend search request format and remaining pagination/error-response details.
 
 **Related requirements:** RFRM044–RFRM050, RFRM061–RFRM062; RTRM001, RTRM006–RTRM007; RTSN.
 
