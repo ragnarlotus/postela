@@ -163,6 +163,16 @@ A client may specify the field and direction for an individual search without up
 
 **Related requirements:** RFRM061.
 
+#### RFGS017 — Administrator-only advanced-search result limit
+
+Postela must initially limit each advanced search to **500 matching messages**. The administrator may change this limit through a **single** TOML setting, `[search].max_results`, independently of the user's folder-list `page_size` preference.
+
+The **same configured value** must also limit the number of candidates requiring MIME `BODYSTRUCTURE` inspection when evaluating attachment-presence search conditions. There must be **no separate attachment-inspection limit**. End users and clients cannot override or increase either limit.
+
+If the final match count or the number of candidates requiring MIME inspection exceeds this limit, the search must fail with an identifiable limit-exceeded response asking for narrower criteria; it must **not** silently truncate, sort, or paginate an arbitrary subset as if it were the complete set.
+
+**Related requirements:** RFRM048, RFRM050; RTGS028, RTRM014.
+
 ## Scope boundaries and follow-up documentation
 
 - **Client language and theme:** supported interface languages and visual themes belong to each client application. Their optional persistence uses the generic client-preference store defined in [Functional data storage](./data-storage.md) and [Technical data storage](../technical/data-storage.md).
