@@ -825,13 +825,13 @@ This completes the initially approved technical behavior for `RTRM009`; any addi
 
 **Session-scoped ordered search-result cache for pagination:**
 
-1. After a successful initial search satisfying the shared `search.max_results` limit, complete the approved global ordering and retain an **ordered list of physical message identities** (mailbox, `UIDVALIDITY`, UID) in memory for subsequent pages of that search.
+1. After an initial search satisfying the shared `search.max_results` limit, even when **some mailbox searches have failed**, order the available matches and retain the **ordered list of physical message identities** (mailbox, `UIDVALIDITY`, UID) in memory for subsequent pages. Preserve whether the result is complete or partial.
 2. Maintain **at most one advanced-search result cache per authenticated session**, independent of other sessions and the existing folder-list and conversation caches. The cached identities must represent the same search scope, criteria (including nested boolean groups), effective sorting and direction, and underlying mailbox UID generations; do not reuse them for a different search.
 3. **Subsequent page requests** reuse this ordered identity list, applying pagination globally to that list and fetching only the additional metadata required for the requested page. They must not rerun the full IMAP search or global ordering while the cached result remains valid.
 4. **A new advanced search replaces** the existing search-result cache for that session. The cache may contain **at most `search.max_results` message identities**; never persist message bodies, attachments, a local search index, or a separate searchable message-metadata collection.
 5. Invalidate the affected session search caches when IMAP notifications or confirmed operations change membership, match criteria, sorting values, mailbox availability, or `UIDVALIDITY` for any participating mailbox. Invalidation triggers **no immediate re-query**; rebuild only when that session next requests the affected search or page, and do not serve stale identities as current results.
 6. Keep the cache across transient WebSocket reconnections only while its authenticated backend session remains valid. Release it on logout, session invalidation or expiry, and backend restart, using the established session lifecycle and without maintaining a persistent IMAP connection.
-7. Preserve the existing reporting of per-mailbox partial failures and invalid message identities; never claim that a cached result remains complete or valid after relevant mailbox state changes.
+7. Preserve per-mailbox failure details and an explicit **complete/incomplete status** alongside the cached identities, and return that status on **every page** served from the cache. Never claim the result is exhaustive after a partial failure, or that cached identities remain valid after relevant mailbox state changes.
 
 **Automatically rebuild an invalidated search when a page is requested:**
 
@@ -839,7 +839,15 @@ This completes the initially approved technical behavior for `RTRM009`; any addi
 2. When a relevant mailbox change invalidates the ordered results, **do not rerun the search immediately**. On the **next page request for that same active search**, automatically rerun the original search across its scope, recompute the full combined result and global ordering, and replace the invalidated identities before selecting the requested page.
 3. Reapply the current administrator-controlled **`search.max_results` limit** to both final matches and any `BODYSTRUCTURE` inspection candidates during regeneration. If it is exceeded, return the previously defined identifiable limit-exceeded error rather than a truncated page.
 4. Return the **requested page of the regenerated result set**, using the existing page numbering and pagination rules. Message additions, removals, moves, or metadata changes can cause entries to shift between pages; the response must reflect the updated result rather than stale cached positions.
-5. Preserve existing partial-failure and uncertain-result reporting if the regenerated search cannot cover every mailbox; never label an incomplete result as exhaustive. A new explicitly requested search still replaces the session's active search and cache.
+5. Preserve existing partial-failure and uncertain-result reporting if the regenerated search cannot cover every mailbox; **cache and paginate the available partial results** with their incomplete status. A new explicitly requested search still replaces the session's active search and cache.
+
+**Partial search failures and pagination of incomplete results:**
+
+1. If one or more in-scope mailboxes cannot be searched, **keep the successfully retrieved matches**, order them globally among the available results, and **cache this partial ordered list** for the active authenticated session, subject to `search.max_results`.
+2. Include an explicit **incomplete-results indicator** and details of the failed mailboxes in the initial search response and **all subsequent page responses** from that cache, so the client can inform the user that additional matches may be missing.
+3. **Do not treat the partial failure itself as cache invalidation.** Following page requests must reuse the same incomplete cached result without automatically retrying failed mailbox searches. To retry those mailboxes the client must initiate a **new explicit search** at the user's request, replacing the prior cache.
+4. Continue to invalidate the cache for **actual relevant mailbox changes** as previously approved; only that independent invalidation causes an automatic regeneration on a later page request. If regeneration fails partially, its new partial result is likewise cached and marked incomplete.
+5. Never present the count of cached partial results as the definitive total number of matching messages in the full search scope.
 
 **Advanced-search page size:**
 
