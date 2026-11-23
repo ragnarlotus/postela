@@ -433,7 +433,7 @@ A search must support multiple simultaneous criteria with **AND**, **OR**, and *
 
 **AND** is the default conjunction when no other operator is specified. **OR** matches at least one of its conditions; **NOT** negates the condition or group to which it applies.
 
-Each client application owns its search interface and specifies the requested criteria, grouping, and logical operators for the backend to execute through IMAP. **The concrete client-to-backend request format remains to be defined separately**; this requirement does not prescribe a JSON schema, expression language, or UI design.
+Each client application owns its search interface and specifies the requested criteria, grouping, and logical operators for the backend to execute through IMAP. The agreed client-to-backend request format is **JSON** with a required `folders` array of explicit IMAP mailbox names, a `criteria` tree of simple conditions and nested logical groups (`AND`, `OR`, `NOT`), and an optional `sort` object (`by`, `direction`) for temporary ordering. The backend validates fields, values, and operators, translates the supported tree into safe IMAP search operations, and must not accept arbitrary client-provided IMAP syntax. Subsequent page requests reuse the session's active search without requiring the full criteria again. The concrete frontend search interface remains the responsibility of each client.
 
 An advanced search must contain **at least one effective search condition**. A request without search conditions, including one containing only empty logical groups, must be rejected as invalid rather than implicitly searching all messages with `UID SEARCH ALL`. Browsing messages without advanced-search criteria belongs to the established folder-listing operations.
 
