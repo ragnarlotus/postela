@@ -814,6 +814,12 @@ This completes the initially approved technical behavior for `RTRM009`; any addi
 5. Continue applying established search defaults when `sort` is omitted. A search-specific sort override does not modify saved account preferences. Later pagination requests reuse the active session search definition and cached ordered identities rather than resubmitting the full JSON criteria.
 6. This decision fixes the overall JSON structure and the illustrated text-condition representation; the exact encodings of other criterion types and remaining page/error response fields can be specified separately without changing the approved three-part request structure.
 
+**Boolean field encoding in JSON search criteria:**
+
+1. Represent each boolean condition as `{ "field": "<name>", "value": true|false }`, where `<name>` is one of `read`, `flagged`, `answered`, or `has_attachments`. Require actual JSON booleans; do not interpret strings or numbers as boolean flags.
+2. Translate `read: true/false` to IMAP `SEEN`/`UNSEEN`, `flagged: true/false` to `FLAGGED`/`UNFLAGGED`, and `answered: true/false` to `ANSWERED`/`UNANSWERED`. Evaluate `has_attachments: true/false` using the already approved MIME `BODYSTRUCTURE` inspection, not an unsupported IMAP flag.
+3. Allow all these simple conditions anywhere in the approved nested `AND`/`OR`/`NOT` criteria tree. A separate comparison operator is unnecessary for boolean conditions; retain the previously approved search validation, resource limits, and safe IMAP-expression construction.
+
 **Message-size search criteria:**
 
 1. Support strictly **larger than** and strictly **smaller than** byte thresholds using the standard IMAP `LARGER <n>` and `SMALLER <n>` search keys, respectively.
