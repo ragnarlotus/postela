@@ -944,6 +944,13 @@ This completes the initially approved technical behavior for `RTRM009`; any addi
 2. Reject these requests with an identifiable **invalid-search-criteria** error; do not replace them with IMAP `UID SEARCH ALL` or traverse the account merely to return unfiltered results. Existing folder-listing operations provide unfiltered mailbox browsing.
 3. Leave the concrete client-to-backend expression format unspecified, as previously agreed; this validation applies regardless of the eventual request representation.
 
+**Search request, page request, and exit to folder listings:**
+
+1. The initial advanced search request supplies the previously defined JSON `folders`, `criteria`, and optional `sort` and **returns the first page** after completing the search. It replaces the current session's prior active advanced search and its result cache.
+2. For a subsequent search page, accept **only** `{ "page": <integer> }` as the page-request payload, with no repeated folders, criteria, sorting, or explicit search identifier. Resolve the active search solely from the authenticated session, reuse the ordered cache when valid, and apply the existing on-demand regeneration and page-clamping behavior otherwise.
+3. **A request for a folder's message listing ends the active advanced search in that session.** Clear both the advanced-search cached ordered identities and the retained search definition (including scope, criteria, and sorting) when processing that folder-listing request; it must not survive for later page requests. This applies to the folder-listing mode regardless of whether it is individual-message or grouped-conversation listing. Do not conflate this with the independent `RTRM006`/`RTRM007` listing caches.
+4. A new advanced search after viewing a folder must send its full request again. If the client instead requests a search page after the search was cleared, return the previously defined `search-not-available` error rather than reconstructing or regenerating the abandoned search.
+
 **Page requests when no active search exists in the authenticated session:**
 
 1. Distinguish an **invalidated search-result cache**, whose active search criteria are still retained and can be regenerated on demand, from an **absent active search**, for which no search criteria remain in the current session.
