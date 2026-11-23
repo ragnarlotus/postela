@@ -28,7 +28,7 @@ The backend must define and validate these Postela-owned keys in `account_prefer
 
 | Key | Stored value |
 | --- | --- |
-| `page_size` | Integer folder-list page size (messages or conversations, depending on mode) |
+| `page_size` | Integer page size for folder listings (messages or conversations) and advanced-search results (individual messages) |
 | `sort` | Object specifying folder-list sorting criterion and direction |
 | `delete_to_trash` | Boolean controlling trash-first versus permanent deletion |
 | `thread_view` | Boolean enabling grouped conversation listings when supported |
@@ -82,7 +82,7 @@ The administrator must be able to configure these three values through layered T
 
 At startup, the backend must verify that **minimum ≤ default ≤ maximum**, and that the values are valid positive integers. An inconsistent configuration must fail validation under `RTCA007`.
 
-A user's `page_size` override must be validated against the effective configured interval. A page contains **conversations** when grouping is active, and **individual messages** otherwise; the same preference and bounds apply to both.
+A user's `page_size` override must be validated against the effective configured interval. A folder-list page contains **conversations** when grouping is active, and **individual messages** otherwise. **Advanced-search pages always contain individual matching messages** and reuse the same effective `page_size` and administrator-configured bounds, without a distinct search page-size configuration.
 
 **Related requirements:** RFGS002; RTCA004–RTCA008.
 
