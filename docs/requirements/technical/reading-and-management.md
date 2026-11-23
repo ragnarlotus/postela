@@ -841,7 +841,13 @@ This completes the initially approved technical behavior for `RTRM009`; any addi
 4. Return the **requested page of the regenerated result set**, using the existing page numbering and pagination rules. Message additions, removals, moves, or metadata changes can cause entries to shift between pages; the response must reflect the updated result rather than stale cached positions.
 5. Preserve existing partial-failure and uncertain-result reporting if the regenerated search cannot cover every mailbox; never label an incomplete result as exhaustive. A new explicitly requested search still replaces the session's active search and cache.
 
-**Still pending within RTRM014:** concrete client-to-backend search request format and remaining pagination/error-response details.
+**Advanced-search page size:**
+
+1. Reuse the account's effective `page_size` preference as defined in `RFGS002`/`RTGS004`, including the administrator-configured default, minimum, and maximum and the established user-override fallback behavior. Do **not** add a separate search-specific page-size setting.
+2. Every advanced-search page contains **individual matching messages**, independently of `thread_view`. Apply this page size only **after global ordering** of the complete matching result set, both on the initial request and when using or regenerating the session cache.
+3. Keep `page_size` independent of the administrator-only `[search].max_results` processing cap: pagination never permits exceeding the result limit and the limit does not change the effective page size.
+
+**Still pending within RTRM014:** concrete client-to-backend search request format and other pagination/error-response details.
 
 **Related requirements:** RFRM044–RFRM050, RFRM061–RFRM062; RTRM001, RTRM006–RTRM007; RTSN.
 
