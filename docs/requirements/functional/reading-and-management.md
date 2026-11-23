@@ -415,6 +415,8 @@ Whether the user selects **one folder, several folders, or all folders** in the 
 
 If the array is missing or empty, Postela must return an identifiable **search-scope-required** error without executing or caching the search.
 
+The folder array supplied with a search must remain **fixed for the lifetime of that active search**, including whenever its result cache is regenerated. Creating a new folder after the search begins must not add it to the active search, even if the user originally selected all folders in the frontend. To include newly created folders, the client must **explicitly execute a new search with an updated folder array**.
+
 #### RFRM046 — Search criteria and received-date filtering
 
 The client must be able to filter messages by sender, recipients, subject, message content, dates, and message state/flags.
