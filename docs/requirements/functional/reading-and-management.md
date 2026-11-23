@@ -449,6 +449,8 @@ Advanced searches must return **individual matching messages**, even when `threa
 
 Searches must return globally paginated results, with each result identified by its containing folder, `UIDVALIDITY`, and UID, including when results span several folders. A multi-folder search must present one combined result list rather than a separate page per mailbox.
 
+Advanced searches are subject to **one administrator-controlled result-processing limit**, initially **500 messages** (`[search].max_results`). The same value limits both **the number of final matching messages** and **the number of candidate messages that require MIME `BODYSTRUCTURE` inspection** for attachment-presence filtering; there must not be separate limits for these cases. Users and clients cannot raise the configured limit. If either count would exceed it, Postela must **reject the search with an identifiable limit-exceeded error**, prompting narrower criteria, rather than returning a truncated or potentially misleading result set. This is independent of pagination page size.
+
 Postela must not persist emails, maintain a local full-text search index, or require downloading all message bodies for searching. The efficient implementation of multi-folder searching, combining results, and pagination belongs to `RTRM`.
 
 ### Deferred features
