@@ -866,6 +866,13 @@ This completes the initially approved technical behavior for `RTRM009`; any addi
 3. Keep `page_size` independent of the administrator-only `[search].max_results` processing cap: pagination never permits exceeding the result limit and the limit does not change the effective page size.
 4. For **all page requests, with a valid cache or after regeneration**, clamp integer page numbers to the available range. If the requested page is **less than 1**, return page **1**; if it exceeds the **last available page**, return that last page; otherwise return the requested page. When `total = 0`, return **page 1 with an empty result list**. Return the **effective page number** in the response, allowing the frontend to update navigation without an additional request.
 
+**Change of `page_size` during an active advanced search:**
+
+1. When the effective account `page_size` preference changes, **reuse the existing valid ordered search-result cache** for that authenticated session. The change alone must not invalidate cached message identities, rerun `UID SEARCH`, or repeat global sorting.
+2. Recalculate page boundaries using the new effective `page_size`, and paginate the same ordered result identities. This does not change search scope, matching criteria, ordering, `total`, or the administrator-controlled `[search].max_results` limit.
+3. Apply the previously approved bidirectional page-bound clamping: if the requested page now exceeds the last available page, return that last page; if it is below 1, return page 1; if there are no results, return an empty page 1. Include the effective page number in the response so the frontend can update its navigation without an additional request.
+4. If the cache was independently invalidated by a relevant mailbox change, follow the already approved on-demand regeneration rules; a `page_size` change by itself does not cause regeneration.
+
 **Reject advanced searches without effective conditions:**
 
 1. Validate the client-provided search expression before querying any IMAP mailbox. Require **at least one effective supported search criterion**; an absent criteria expression or a tree containing only empty logical groups/operators does not qualify.
