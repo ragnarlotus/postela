@@ -425,6 +425,8 @@ The client must be able to filter messages by sender, recipients, subject, messa
 
 Date searches must use **only the received/internal date** (`received_date`, IMAP `INTERNALDATE`). The JSON criterion is `{ "field": "received_date", "start": "YYYY-MM-DD", "end": "YYYY-MM-DD" }`, with either bound individually optional but **at least one required**. Both bounds are inclusive; no date-type selector or `sent_date` search filter is required. For a search on a **single calendar day**, the client supplies **the same date as both start and end**. Date criteria are evaluated by calendar days according to IMAP semantics. Invalid calendar dates and an interval with a start date after its end date must be rejected.
 
+Text search conditions are encoded in the JSON criteria tree as `{ "field": "<field>", "value": "<nonempty string>" }`, with supported fields `from`, `to`, `cc`, `bcc`, `recipients` (matches any of To/Cc/Bcc), `subject`, `body`, and `text`. They use the server's IMAP text-match semantics, not SQL `LIKE`, wildcards, or regular expressions. The backend validates strings, treats their contents strictly as data, and handles IMAP character encoding safely. These fields can participate in the agreed nested `AND`/`OR`/`NOT` groups.
+
 The search must be performed against the server through IMAP rather than against a locally persisted message index.
 
 #### RFRM047 — Combined criteria and logical operators
