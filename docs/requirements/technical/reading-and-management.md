@@ -791,6 +791,14 @@ This completes the initially approved technical behavior for `RTRM009`; any addi
 3. Preserve grouped semantics when a condition is itself composite, such as an all-recipients match over `TO`, `CC`, and `BCC`. Validate the requested criteria and structure and construct IMAP commands safely rather than passing arbitrary client-provided IMAP syntax through to the server.
 4. Use the approved **JSON search request format** specified below; the frontend search interface is independently designed by each client.
 
+**JSON logical-group structure and validation:**
+
+1. Encode every logical group as `{ "operator": "AND" | "OR" | "NOT", "conditions": [...] }`, allowing individual condition objects or other nested logical groups as children.
+2. Require **one or more** children for `AND` and `OR`; a single child is permitted. Require **exactly one** child for `NOT`, which may itself be a nested group. Reject empty groups, unknown operators, malformed `conditions`, and incompatible structures before querying IMAP.
+3. Support nested groups, including a `NOT` around a nested group; preserve the exact logical precedence when building safe IMAP search-key expressions.
+4. Do not impose an arbitrary nesting-depth limit as a functional restriction; apply reasonable technical safety limits to prevent excessive resource usage.
+5. Example: `{ "operator": "AND", "conditions": [{ "operator": "OR", "conditions": [{ "field": "from", "value": "pepe" }, { "field": "from", "value": "juan" }] }, { "operator": "NOT", "conditions": [{ "field": "flagged", "value": true }] }] }`.
+
 **Client-to-backend JSON request for an advanced search:**
 
 1. Accept a JSON object with `folders` (required array of concrete IMAP mailbox names), `criteria` (required tree of supported simple conditions and nested logical groups), and optional `sort` (`by` criterion and `direction`). No separate all-folders flag or implicit mailbox scope is permitted.
