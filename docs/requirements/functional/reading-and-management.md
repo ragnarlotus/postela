@@ -459,6 +459,8 @@ The search response must expose **one `total` count**, equal to the number of ma
 
 For any advanced-search page request, **whether the result cache is valid or has just been regenerated**, Postela must clamp the requested page to the available range: requests **below page 1 return page 1**, requests **above the final available page return the last available page**, and requests within the range return the requested page. If no matches remain, return **page 1 with an empty result list and `total = 0`**. Always include the **effective page number** so the client can update its navigation without making a second request.
 
+If a client requests another search-results page but the authenticated session **no longer has an active search**, Postela must return an identifiable **search-not-available** error rather than attempt to reconstruct or run an unknown query. This is distinct from an invalidated but still-known search, which can be regenerated. The client may explicitly execute the search again using criteria retained by its interface; Postela must not persist search criteria merely to recover them across sessions.
+
 Postela must not persist emails, maintain a local full-text search index, or require downloading all message bodies for searching. The efficient implementation of multi-folder searching, combining results, and pagination belongs to `RTRM`.
 
 ### Deferred features
