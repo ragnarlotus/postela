@@ -429,6 +429,8 @@ A search must support multiple simultaneous criteria with **AND**, **OR**, and *
 
 Each client application owns its search interface and specifies the requested criteria, grouping, and logical operators for the backend to execute through IMAP. **The concrete client-to-backend request format remains to be defined separately**; this requirement does not prescribe a JSON schema, expression language, or UI design.
 
+An advanced search must contain **at least one effective search condition**. A request without search conditions, including one containing only empty logical groups, must be rejected as invalid rather than implicitly searching all messages with `UID SEARCH ALL`. Browsing messages without advanced-search criteria belongs to the established folder-listing operations.
+
 #### RFRM048 — Filter by attachment presence
 
 Searches must accept a boolean attachment-presence criterion, distinguishing messages **with** and **without** downloadable attachments.
