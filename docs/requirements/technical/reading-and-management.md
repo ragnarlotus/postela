@@ -789,7 +789,17 @@ This completes the initially approved technical behavior for `RTRM009`; any addi
 3. Accept only non-negative integer byte values, validating input before generating IMAP commands. The client is responsible for any user-friendly display or unit conversion.
 4. Allow size conditions to participate in the already approved nested `AND`/`OR`/`NOT` search expressions, and evaluate them server-side via `UID SEARCH` without downloading messages to calculate size.
 
-**Still pending within RTRM014:** concrete search request format, attachment-presence criteria, combined result sorting and global pagination, and related efficiency/fallback decisions.
+**Attachment-presence search criterion:**
+
+1. Support a **boolean attachment-presence condition** (`true` for messages containing downloadable attachments, `false` for messages without them) according to `RFRM048`. Reuse the MIME-part metadata interpretation and attachment-identification rules from `RTRM008`, rather than using an unrelated definition for searches.
+2. Because standard IMAP `SEARCH` has no portable predicate with this attachment definition, evaluate this criterion in Postela using **`UID FETCH BODYSTRUCTURE`** for the messages requiring examination. Group requests by mailbox and UID sets and batch them when appropriate. **Do not download message bodies or attachment content** for this search.
+3. Run all other server-supported predicates through `UID SEARCH` as already approved. Compose their results with attachment-presence checks according to the **full nested AND/OR/NOT expression**; never prefilter on one OR branch in a way that excludes messages which could match the attachment branch. This can require inspecting the MIME structure of many messages, including messages without matches on other branches.
+4. Respect the `RFRM048` distinction between **downloadable files** (including previewable files) and **inline CID images used only to render message content**; the presence of an additional MIME part by itself does not establish an attachment.
+5. Preserve each matching message's folder, `UIDVALIDITY`, and UID, and retain the existing per-mailbox failure/partial-result reporting. Do not introduce persistent message indexes.
+
+**Technical detail still to resolve:** `BODYSTRUCTURE` exposes MIME structure, disposition, and `Content-ID`, but does **not** expose whether a particular CID is actually referenced by HTML content. The precise treatment of ambiguous CID/MIME cases under the `RFRM048` definition requires a separate decision; do not assume this can always be proven from `BODYSTRUCTURE` alone.
+
+**Still pending within RTRM014:** concrete search request format, precise ambiguous-CID classification, combined result sorting and global pagination, and related efficiency/fallback decisions.
 
 **Related requirements:** RFRM044–RFRM050, RFRM061–RFRM062; RTRM001, RTRM006–RTRM007; RTSN.
 
