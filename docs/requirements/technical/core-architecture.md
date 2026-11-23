@@ -242,13 +242,13 @@ No frontend framework, including Vue, React, or Angular, may be assumed by the b
 
 The WebSocket protocol must support these message categories:
 
-- **Request:** a unique request identifier, operation name, and parameters.
-- **Response:** the corresponding request identifier and either a result or an error.
+- **Request:** an operation name and its parameters, without requiring a request identifier at this stage.
+- **Response:** the operation's result or error, without mandating a corresponding request identifier.
 - **Notification:** an event identifier/type and associated event data, without requiring a preceding request.
 
-Request identifiers must allow multiple outstanding operations to be matched to their respective responses, even when responses arrive out of order.
+**Do not require `request_id` or another universal request identifier in the initial protocol solely to correlate requests and responses.** This does not prohibit identifiers if a concrete operation or the finalized transport protocol establishes a justified need.
 
-The exact JSON property names and message schemas remain to be specified before implementation.
+The exact JSON property names, message schemas, and mechanism for associating responses with outstanding independent queries and queued operations remain **undecided**. The previously approved query-supersession and side-effect-operation queuing behavior in `RTCA030`–`RTCA033` remains in force; do not infer a correlation mechanism from those concurrency rules.
 
 #### RTCA028 — Protocol version negotiation
 
