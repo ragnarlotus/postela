@@ -797,9 +797,14 @@ This completes the initially approved technical behavior for `RTRM009`; any addi
 4. Respect the `RFRM048` distinction between **downloadable files** (including previewable files) and **inline CID images used only to render message content**; the presence of an additional MIME part by itself does not establish an attachment.
 5. Preserve each matching message's folder, `UIDVALIDITY`, and UID, and retain the existing per-mailbox failure/partial-result reporting. Do not introduce persistent message indexes.
 
-**Technical detail still to resolve:** `BODYSTRUCTURE` exposes MIME structure, disposition, and `Content-ID`, but does **not** expose whether a particular CID is actually referenced by HTML content. The precise treatment of ambiguous CID/MIME cases under the `RFRM048` definition requires a separate decision; do not assume this can always be proven from `BODYSTRUCTURE` alone.
+**Attachment classification from MIME metadata (without retrieving HTML):**
 
-**Still pending within RTRM014:** concrete search request format, precise ambiguous-CID classification, combined result sorting and global pagination, and related efficiency/fallback decisions.
+1. Treat MIME parts explicitly declaring `Content-Disposition: attachment` as **downloadable attachments**, including files whose type would also allow a preview.
+2. **Exclude images with a `Content-ID` that are declared `inline` within `multipart/related`**, treating them as content-rendering resources for the purposes of attachment-presence search. Do not require inspecting the message HTML to confirm a `cid:` reference.
+3. Classify all other potentially downloadable parts using the existing `RTRM008` MIME metadata and attachment-identification rules; neither the mere presence of a separate MIME part nor an arbitrary `Content-ID` alone establishes a downloadable attachment.
+4. Use this **metadata-based approximation consistently for search results**. `BODYSTRUCTURE` does not prove whether an inline CID image is actually referenced in HTML; do not claim to have verified that fact or download HTML to check it.
+
+**Still pending within RTRM014:** concrete search request format, combined result sorting and global pagination, and related efficiency/fallback decisions.
 
 **Related requirements:** RFRM044–RFRM050, RFRM061–RFRM062; RTRM001, RTRM006–RTRM007; RTSN.
 
