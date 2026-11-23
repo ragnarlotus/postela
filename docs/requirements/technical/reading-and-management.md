@@ -774,7 +774,7 @@ This completes the initially approved technical behavior for `RTRM009`; any addi
 1. Date filtering uses **only `received_date`** (the IMAP message `INTERNALDATE`), with optional calendar-date **start** and **end** fields. Do not expose a `sent_date` date filter or a date-type selector.
 2. Translate an inclusive start date to IMAP `SINCE <date>`; translate an inclusive end date to `BEFORE <next-calendar-date>` because `BEFORE` is exclusive. Calculate the following **calendar day**, rather than adding a fixed duration in hours.
 3. When start and end are the **same calendar date**, apply both `SINCE` for that date and `BEFORE` for the following date. Do not use `ON` or introduce a separate exact-date parameter.
-4. Either boundary may be omitted; when both are omitted, do not add a date search condition. Reject invalid date values and any interval whose start date is later than its end date.
+4. Encode a date condition in the JSON criteria tree as `{ "field": "received_date", "start": "YYYY-MM-DD", "end": "YYYY-MM-DD" }`, with `start` or `end` individually optional but at least one required. Validate strict calendar dates without time or timezone, and reject absent/empty bounds, invalid dates, and intervals where `start` is later than `end`. An omitted date filter contributes no date search key; an explicit date-condition object with neither bound is invalid.
 5. Run the date criteria server-side via `UID SEARCH` for each in-scope mailbox, according to IMAP's internal-date calendar-day comparison, without downloading messages to inspect timestamps.
 
 **Nested boolean composition of search criteria:**
