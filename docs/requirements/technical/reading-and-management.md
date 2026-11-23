@@ -782,7 +782,37 @@ This completes the initially approved technical behavior for `RTRM009`; any addi
 1. Accept search criteria and their **logical grouping** from the client application, supporting nested combinations of **AND**, **OR**, and **NOT**. Do not restrict searches to a single global AND/OR operator.
 2. Translate each requested condition and group into the equivalent server-side IMAP `UID SEARCH` search-key expression: juxtaposed keys for AND, IMAP's binary `OR` for alternatives (nested where necessary), and `NOT` for negation, preserving group precedence.
 3. Preserve grouped semantics when a condition is itself composite, such as an all-recipients match over `TO`, `CC`, and `BCC`. Validate the requested criteria and structure and construct IMAP commands safely rather than passing arbitrary client-provided IMAP syntax through to the server.
-4. Leave **the frontend search interface and the concrete client-to-backend request format unspecified** until a separate decision. The backend must remain capable of expressing the approved nested boolean logic without requiring any particular transport schema or UI design in this requirement.
+4. Use the approved **JSON search request format** specified below; the frontend search interface is independently designed by each client.
+
+**Client-to-backend JSON request for an advanced search:**
+
+1. Accept a JSON object with `folders` (required array of concrete IMAP mailbox names), `criteria` (required tree of supported simple conditions and nested logical groups), and optional `sort` (`by` criterion and `direction`). No separate all-folders flag or implicit mailbox scope is permitted.
+2. Represent a logical group by an `operator` (`AND`, `OR`, or `NOT`) and nested `conditions` where appropriate, and a simple text condition by its supported `field` and `value`. Groups can be nested. Do not impose an arbitrary depth limit; enforce reasonable technical safety limits.
+3. For example, an expression matching messages with subject containing either "almuerzo" or "comida" and sender containing "pepe" can be represented as:
+
+   ```json
+   {
+     "folders": ["INBOX", "INBOX.Personal"],
+     "criteria": {
+       "operator": "AND",
+       "conditions": [
+         {
+           "operator": "OR",
+           "conditions": [
+             {"field": "subject", "value": "almuerzo"},
+             {"field": "subject", "value": "comida"}
+           ]
+         },
+         {"field": "from", "value": "pepe"}
+       ]
+     },
+     "sort": {"by": "date", "direction": "desc"}
+   }
+   ```
+
+4. Validate folder names, supported criteria, fields, operators, values, and tree structure before generating safe backend-controlled IMAP search commands. Reject arbitrary IMAP syntax supplied by the client. Preserve the previously agreed `invalid-search-criteria` and `search-scope-required` handling.
+5. Continue applying established search defaults when `sort` is omitted. A search-specific sort override does not modify saved account preferences. Later pagination requests reuse the active session search definition and cached ordered identities rather than resubmitting the full JSON criteria.
+6. This decision fixes the overall JSON structure and the illustrated text-condition representation; the exact encodings of other criterion types and remaining page/error response fields can be specified separately without changing the approved three-part request structure.
 
 **Message-size search criteria:**
 
@@ -885,7 +915,7 @@ This completes the initially approved technical behavior for `RTRM009`; any addi
 2. When a pagination request arrives without an active advanced search in its authenticated session, return an identifiable **search-not-available** error. Do not attempt to reconstruct the prior search from incomplete information or silently start a different search.
 3. Let the client **explicitly submit a new search** using criteria it still holds in its own interface. Do not persist search expressions in the database solely to recover after logout, session expiry, backend restart, or reauthentication. Existing authentication/session errors remain governed by the established session rules.
 
-**Still pending within RTRM014:** concrete client-to-backend search request format and other pagination/error-response details.
+**Still pending within RTRM014:** remaining typed-condition encoding, pagination and error-response details.
 
 **Related requirements:** RFRM044–RFRM050, RFRM061–RFRM062; RTRM001, RTRM006–RTRM007; RTSN.
 
