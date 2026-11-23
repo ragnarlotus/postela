@@ -451,6 +451,8 @@ Searches must return globally paginated results, with each result identified by 
 
 Advanced searches are subject to **one administrator-controlled result-processing limit**, initially **500 messages** (`[search].max_results`). The same value limits both **the number of final matching messages** and **the number of candidate messages that require MIME `BODYSTRUCTURE` inspection** for attachment-presence filtering; there must not be separate limits for these cases. Users and clients cannot raise the configured limit. If either count would exceed it, Postela must **reject the search with an identifiable limit-exceeded error**, prompting narrower criteria, rather than returning a truncated or potentially misleading result set. This is independent of pagination page size.
 
+When some in-scope folders fail during a search, Postela may still present and paginate the matches obtained from successfully searched folders. The client must receive an explicit **incomplete-results indication** and the affected folder failures; subsequent page requests must retain that partial-result status and **reuse the same cached partial results without automatically retrying failed folders**. If the user wants to attempt a complete result, the client must **explicitly repeat the search**. This does not prevent cache invalidation due to actual mailbox changes under the separately approved synchronization rules.
+
 Postela must not persist emails, maintain a local full-text search index, or require downloading all message bodies for searching. The efficient implementation of multi-folder searching, combining results, and pagination belongs to `RTRM`.
 
 ### Deferred features
