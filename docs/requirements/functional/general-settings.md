@@ -32,7 +32,7 @@ Resetting a user override must restore the effective default without changing th
 
 The user must be able to configure the number of entries shown per page as an account-wide preference.
 
-When conversation grouping is active, one entry represents one conversation; otherwise, one entry represents one message. The same `page_size` preference applies to both modes.
+When conversation grouping is active, one entry represents one conversation; otherwise, one entry represents one message. The same `page_size` preference applies to both modes **and to advanced-search results**, where each entry represents an individual matching message. Do not introduce a separate user setting for advanced-search page size.
 
 Postela must provide an application default that the administrator can override, and the backend must enforce permitted minimum and maximum page sizes to prevent excessive requests.
 
