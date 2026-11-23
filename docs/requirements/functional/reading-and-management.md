@@ -435,6 +435,8 @@ Searches must accept a boolean attachment-presence criterion, distinguishing mes
 
 Inline `cid:` images used exclusively for rendering message content must not count as downloadable attachments merely because they are separate MIME parts. Downloadable files, including those also suitable for preview, must count as attachments.
 
+For **attachment-presence searches**, Postela determines this distinction from **MIME metadata** without downloading HTML content: parts explicitly declared as `attachment` count; CID images declared `inline` inside `multipart/related` do not count; other downloadable parts follow the existing `RTRM008` MIME classification rules. Because the search does not inspect HTML references, this is a metadata-based classification rather than a verification that every CID image is actually used by the HTML.
+
 #### RFRM049 — Filter by message size
 
 Searches must accept a size threshold in **bytes** and support finding messages **larger than** or **smaller than** that value.
