@@ -282,21 +282,21 @@ An ordinary operation failure must not terminate other requests, the authenticat
 
 An invalid or expired session must produce a recognizable session error and definitive disconnection, requiring new authentication. The client is responsible for presenting localized messages.
 
-#### RTCA030 — Concurrent requests
+#### RTCA030 — Query supersession and queued operations per session
 
-A single WebSocket must support multiple in-flight requests. They may be executed concurrently and completed in a different order than submitted.
+Separate **replaceable read-only queries** from **operations with side effects**. The decision applies within an individual authenticated client session; a request from one session must not cancel or discard work initiated by another session of the same account.
 
-The implementation must enforce configurable concurrency and operation timeouts, with resource-specific safeguards. Failure of one request must not disrupt unrelated requests.
+- **Replaceable queries in the same client flow:** the latest frontend request supersedes earlier unfinished queries of that flow. Discard superseded queued query work immediately, request cancellation of work already running when technically possible, and never return a superseded query result to the frontend. A non-cancellable in-progress query may finish internally, but its obsolete result is discarded. Start the latest query as soon as resources permit, without waiting for obsolete work that can be cancelled.
+- **Side-effecting operations:** enqueue them in arrival order for that session. Do not cancel, replace, or silently discard an accepted operation because another frontend request arrives; preserve each operation's outcome and report it according to the established success, failure, and uncertain-result rules. This includes nominally read-oriented actions if they have side effects.
+- **Independent queries or work streams:** do not invalidate one another merely because they originate in the same session. Backend-initiated notifications and account monitoring are also independent of frontend query supersession.
 
-Concurrent writes to a WebSocket and accesses to shared backend state must be coordinated safely.
+Continue enforcing configurable resource-concurrency limits and timeouts, with separate session state and coordinated access to shared backend resources and WebSocket writes. The precise classification of operations by cancelability and their flow boundaries must be made explicit in the operation/protocol contract before implementation; this requirement does not assign every request to a single global replaceable stream.
 
-#### RTCA031 — No explicit request-cancellation protocol initially
+#### RTCA031 — Automatic cancellation of superseded queries
 
-The initial protocol must **not require a client-initiated cancel operation** keyed by request identifier.
+The initial protocol must **not require a separate client-initiated cancellation command** or a cancel request keyed by a request identifier. Instead, receipt of a newer replaceable query in the same session flow automatically supersedes earlier unfinished queries of that flow as established in `RTCA030`.
 
-Clients may disregard responses to requests that are no longer relevant, and the backend must enforce operation timeouts to bound resource usage.
-
-Whether to introduce explicit request cancellation in a later version must be justified by a concrete functional need.
+The backend must remove obsolete queued queries, request cancellation of obsolete running work where feasible, and suppress any obsolete result even if the underlying work cannot be interrupted. Bound remaining work using resource and operation timeouts. **Never use this automatic cancellation to abort or suppress an accepted side-effecting operation.** An explicit cancellation protocol can be reconsidered only if a concrete later need justifies it.
 
 ### Operation concurrency and backpressure
 
@@ -308,15 +308,15 @@ These connections are separate from the shared persistent account-monitoring con
 
 An operation must release its IMAP connection when it completes or times out.
 
-#### RTCA033 — Bounded FIFO IMAP operation queue
+#### RTCA033 — Bounded per-session queue for side-effecting operations
 
-When a session reaches its concurrent IMAP-operation limit, additional IMAP operations must enter a **FIFO queue belonging to that session**.
+Maintain a **FIFO queue per authenticated session for accepted side-effecting operations**, preserving their arrival order. A later frontend request must not supersede, reorder, or discard queued operations merely because they are older. Execute them in queue order subject to available resources and the established safe completion/uncertain-outcome rules.
 
-The queue must have a configurable maximum capacity and maximum waiting time. When a connection becomes available, the next eligible queued operation must execute.
+Keep queue capacity and maximum waiting time administrator-configurable. Reject an operation with an identifiable capacity/timeout error if it cannot be accepted or exceeds its permitted wait; do not silently drop an accepted operation in favor of a newer one. The previously approved WebSocket-disconnection handling in `RTCA035` remains in force.
 
-Operations that cannot be queued or exceed their waiting time must receive a specific capacity/timeout error, without terminating the session.
+**Replaceable read-only queries must not accumulate in this FIFO operation queue.** When resource limits prevent immediate execution, only the latest still-relevant query for the same session flow may remain pending; superseded pending queries are removed, and running ones are cancelled where feasible under `RTCA030`–`RTCA031`. Independent queries remain subject to resource limits without superseding one another.
 
-A session's queue must not directly block or exhaust another session's independent queue.
+No session's queued work may directly block or exhaust another session's independent queue.
 
 #### RTCA034 — Bounded outbound WebSocket queues
 
