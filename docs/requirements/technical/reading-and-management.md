@@ -815,7 +815,15 @@ This completes the initially approved technical behavior for `RTRM009`; any addi
 7. Fetch any additional listing metadata **only for the resulting page**; reuse sorting metadata already available rather than repeating the same fetch unnecessarily. This strategy can require retrieving metadata for many matching messages before the first page is returned.
 8. Continue to report per-mailbox failures and partial results accurately. Maintain the already approved global sort defaults and temporary request overrides.
 
-**Still pending within RTRM014:** concrete search request format, administrator-controlled search result limits and their semantics, pagination state/efficiency decisions, and related error/partial-result behavior.
+**Administrator-controlled limit on search matches and MIME-inspection candidates:**
+
+1. Enforce the single positive-integer administrator TOML setting `[search].max_results` defined in `RTGS028`, initially **500**. Users and clients cannot override it; it is independent of folder-list `page_size` and search pagination.
+2. Apply this **same limit** to **both** the final number of matching physical messages across all in-scope folders and the number of candidates requiring `UID FETCH BODYSTRUCTURE` inspection for attachment-presence conditions. Do not introduce separate or independently configurable limits.
+3. Perform server-side `UID SEARCH` and collect the required UID candidates and counts before mass-fetching sort metadata. When attachment-presence conditions are involved, use only logically safe server-side prefilters that do not exclude possible matches to other branches of the nested Boolean expression; count all candidates that require MIME inspection.
+4. If **either** the final match count or the number of messages requiring MIME inspection **would exceed** `max_results`, reject the search with a distinct limit-exceeded response instructing the client to request narrower criteria. It is acceptable to stop processing once an over-limit count has been established; do not claim to know a complete match count if the search was terminated early.
+5. **Never** silently truncate or paginate a subset as if it were the complete matching result. Only after both applicable limits are satisfied may Postela sort all definitive matches in memory and apply global pagination, as approved above.
+
+**Still pending within RTRM014:** concrete search request format, pagination state/efficiency decisions, and other error/partial-result details.
 
 **Related requirements:** RFRM044–RFRM050, RFRM061–RFRM062; RTRM001, RTRM006–RTRM007; RTSN.
 
