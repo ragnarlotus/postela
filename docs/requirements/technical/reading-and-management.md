@@ -804,7 +804,15 @@ This completes the initially approved technical behavior for `RTRM009`; any addi
 3. Classify all other potentially downloadable parts using the existing `RTRM008` MIME metadata and attachment-identification rules; neither the mere presence of a separate MIME part nor an arbitrary `Content-ID` alone establishes a downloadable attachment.
 4. Use this **metadata-based approximation consistently for search results**. `BODYSTRUCTURE` does not prove whether an inline CID image is actually referenced in HTML; do not claim to have verified that fact or download HTML to check it.
 
-**Still pending within RTRM014:** concrete search request format, combined result sorting and global pagination, and related efficiency/fallback decisions.
+**Global ordering rules for search results:**
+
+1. Support temporary **ascending and descending** sorting of advanced-search matches by `date` (message date), `folder`, `sender_name` (sender display name), `sender_email` (sender email address), or `subject`, as required by `RFRM061`.
+2. If a request does not override sorting, use administrator-overridable Postela TOML defaults, initially `[search].sort_by = "date"` and `[search].sort_direction = "desc"`. Keep these defaults separate from the account's ordinary folder-listing sort preference. A search-specific override must **not persist** changes to account preferences.
+3. Sort the **single combined result set across all searched mailboxes**, then apply **global pagination**. Never sort and paginate each mailbox independently before combining the results.
+4. Report the effective sorting criterion and direction, including any fallback, to the client. If `sender_name` is unavailable, prefer `sender_email` with the requested direction; otherwise follow `RFRM061` sorting fallbacks (available descending date, then another available criterion). If no usable server sorting criterion exists, return results in server-provided order instead of rejecting the search.
+5. The efficient IMAP execution strategy for global sorting, merging multiple mailboxes, and global pagination remains to be decided separately; these rules do **not** prescribe downloading all message metadata or a particular caching or merge algorithm.
+
+**Still pending within RTRM014:** concrete search request format, efficient combined-result sorting and global pagination strategy, and related capability/fallback decisions.
 
 **Related requirements:** RFRM044–RFRM050, RFRM061–RFRM062; RTRM001, RTRM006–RTRM007; RTSN.
 
