@@ -262,6 +262,15 @@ Incompatible versions must produce a specific error followed by controlled conne
 
 Operation failures must use stable, language-independent error codes, with enough detail for the client to select an appropriate user-facing message.
 
+**Distinguish an operation failure from a partially completed operation across all modules:**
+
+- **Operation failure that prevents completion:** return an identifiable error in the response associated with the originating client request, using the response category defined in `RTCA027`.
+- **Operation completed with partial results or recoverable failures:** return the available successful result in the response and send a **separate warning notification** associated with the request that triggered the operation. The client may use this notification to display a toast explaining the partial outcome. Do not embed that warning in the successful result payload or incorrectly report a complete success.
+
+Backend-originated warning notifications must not, solely because they were sent, terminate an active advanced search or discard its session cache. Any independent invalidation resulting from actual relevant IMAP state changes remains subject to the existing search-cache rules.
+
+The **concrete JSON error and warning schemas, request-correlation fields for warnings, and warning-repeat policy** remain subject to separate decisions. This requirement establishes the shared behavior, not the transport shape.
+
 An ordinary operation failure must not terminate other requests, the authenticated session, or its WebSocket.
 
 An invalid or expired session must produce a recognizable session error and definitive disconnection, requiring new authentication. The client is responsible for presenting localized messages.
