@@ -560,9 +560,9 @@ Advanced search results must support temporary sorting by:
 
 The client must be able to request ascending or descending direction. In the absence of a request override, search defaults must come from administrator-overridable Postela TOML settings: **`[search].sort_by = "date"`** and **`[search].sort_direction = "desc"`** initially. These search defaults are separate from the saved account preference used for ordinary folder listings.
 
-If `sender_name` is unavailable, use `sender_email` where supported while retaining the requested direction. Otherwise use an available date-descending sort, then another available criterion where possible. If the server offers **no usable sorting criterion**, Postela must still return the results in server-provided order, not refuse the search.
+If `sender_name` metadata is unavailable, use `sender_email` where available while retaining the requested direction. Otherwise use an available date-descending sort, then another available criterion where possible. **Server-side IMAP sorting support is not required:** Postela must sort the combined result set using available message metadata, without downloading message bodies or attachments. A missing requested sort field must not cause the search to be rejected.
 
-Sorting and pagination must apply to the combined multi-folder search result, not independently per folder. Effective sorting availability and defaults must be available to the client.
+Sorting and pagination must apply to the combined multi-folder search result, not independently per folder. Effective sorting availability and defaults must be available to the client. Resolving the requested global order may require fetching sorting metadata for **all matching messages** before serving a page.
 
 #### RFRM062 — Safe message identity for all message operations
 
