@@ -862,6 +862,12 @@ This completes the initially approved technical behavior for `RTRM009`; any addi
 2. Reject these requests with an identifiable **invalid-search-criteria** error; do not replace them with IMAP `UID SEARCH ALL` or traverse the account merely to return unfiltered results. Existing folder-listing operations provide unfiltered mailbox browsing.
 3. Leave the concrete client-to-backend expression format unspecified, as previously agreed; this validation applies regardless of the eventual request representation.
 
+**Page requests when no active search exists in the authenticated session:**
+
+1. Distinguish an **invalidated search-result cache**, whose active search criteria are still retained and can be regenerated on demand, from an **absent active search**, for which no search criteria remain in the current session.
+2. When a pagination request arrives without an active advanced search in its authenticated session, return an identifiable **search-not-available** error. Do not attempt to reconstruct the prior search from incomplete information or silently start a different search.
+3. Let the client **explicitly submit a new search** using criteria it still holds in its own interface. Do not persist search expressions in the database solely to recover after logout, session expiry, backend restart, or reauthentication. Existing authentication/session errors remain governed by the established session rules.
+
 **Still pending within RTRM014:** concrete client-to-backend search request format and other pagination/error-response details.
 
 **Related requirements:** RFRM044–RFRM050, RFRM061–RFRM062; RTRM001, RTRM006–RTRM007; RTSN.
