@@ -451,7 +451,7 @@ For **attachment-presence searches**, Postela determines this distinction from *
 
 Searches must accept a size threshold in **bytes** and support finding messages **larger than** or **smaller than** that value.
 
-The client may display or collect the value in user-friendly units, but the backend contract uses bytes.
+The client may display or collect the value in user-friendly units, but the backend contract uses bytes. In the JSON search criteria tree, express size comparisons as `{ "field": "size", "operator": "gt" | "lt", "value": <non-negative integer bytes> }`: `gt` is strictly greater than (`LARGER`) and `lt` strictly less than (`SMALLER`). Two conditions can be combined using `AND` to define an open interval.
 
 #### RFRM050 — Paginated, individually identified search results without local indexing
 
