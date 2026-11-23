@@ -358,9 +358,9 @@ sort_direction = "desc"
 
 `sort_by` must be validated against `date`, `folder`, `sender_name`, `sender_email`, and `subject`; `sort_direction` must accept `asc` or `desc`. Administrator overrides use the layered configuration rules of RTCA004–RTCA008.
 
-A client may choose a different field and direction for an individual search request without writing an account preference or changing the administrator's defaults. The backend must announce effective available options, apply the agreed fallbacks when the server lacks a requested sorting capability, and still return results when no sortable order is available.
+A client may choose a different field and direction for an individual search request without writing an account preference or changing the administrator's defaults. The backend must announce effective available options and apply the agreed fallbacks when requested message metadata is unavailable. Global search-result sorting is performed by Postela using message metadata, without depending on server-side IMAP `SORT` support.
 
-The server-specific sorting, multi-folder merge, and pagination algorithms belong to `RTRM`.
+The metadata-based global ordering, multi-folder merge, and pagination algorithms belong to `RTRM`.
 
 **Related requirements:** RFGS016; RFRM050, RFRM061; RTCA004–RTCA008.
 
