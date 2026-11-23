@@ -405,6 +405,8 @@ A grouped-list thread operation may instead receive its representative message i
 
 A search scoped to a folder must include messages in **that folder and all its descendant subfolders**, regardless of hierarchy depth.
 
+Before starting a folder-scoped search, Postela must confirm that the **requested folder exists on the IMAP server**. If it does not exist (for example, after being deleted or renamed), reject the search with an identifiable **folder-not-found** error. Do **not** treat the nonexistent folder as a successful empty search or cache results for that failed request. This is distinct from an existing non-selectable folder with no selectable descendants.
+
 Each result must identify the IMAP folder that contains the matching message.
 
 #### RFRM045 — Search across the entire account
