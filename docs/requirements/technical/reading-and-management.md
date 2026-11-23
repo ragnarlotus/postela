@@ -820,6 +820,12 @@ This completes the initially approved technical behavior for `RTRM009`; any addi
 2. Translate `read: true/false` to IMAP `SEEN`/`UNSEEN`, `flagged: true/false` to `FLAGGED`/`UNFLAGGED`, and `answered: true/false` to `ANSWERED`/`UNANSWERED`. Evaluate `has_attachments: true/false` using the already approved MIME `BODYSTRUCTURE` inspection, not an unsupported IMAP flag.
 3. Allow all these simple conditions anywhere in the approved nested `AND`/`OR`/`NOT` criteria tree. A separate comparison operator is unnecessary for boolean conditions; retain the previously approved search validation, resource limits, and safe IMAP-expression construction.
 
+**JSON representation of size criteria:**
+
+1. Use simple condition objects with `field = "size"`, `operator = "gt"` or `"lt"`, and an integer `value` measured in bytes. These comparisons are strict: `gt` maps to IMAP `LARGER` and `lt` maps to IMAP `SMALLER`.
+2. Require non-negative integer values; reject incompatible JSON types, unsupported operators, and invalid thresholds before querying IMAP. Unit display and conversion remain client responsibilities.
+3. To express an interval, combine two size conditions in an `AND` group; for example `{ "operator": "AND", "conditions": [{ "field": "size", "operator": "gt", "value": 1048576 }, { "field": "size", "operator": "lt", "value": 10485760 }] }` matches messages strictly between 1 MiB and 10 MiB. Reuse the existing general nested logical-group structure; do not add a separate size-range operator.
+
 **Message-size search criteria:**
 
 1. Support strictly **larger than** and strictly **smaller than** byte thresholds using the standard IMAP `LARGER <n>` and `SMALLER <n>` search keys, respectively.
